@@ -9,6 +9,7 @@ __pycache__/
 
 # Coding Assistants Related
 .claude/
+CLAUDE.md
 
 # Input/Output folders
 input/
