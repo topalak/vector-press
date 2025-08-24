@@ -1,0 +1,22 @@
+[project]
+name = "vector-press"
+version = "0.1.0"
+description = "Latest News Rag"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "ai-common @ git+https://github.com/bgunyel/ai-common.git@main",
+    "einops>=0.8.1",
+    "langchain-groq>=0.3.6",
+    "langchain-ollama>=0.3.6",
+    "langchain-text-splitters>=0.3.9",
+    "langgraph>=0.6.0",
+    "pydantic>=2.11.7",
+    "pydantic-settings>=2.10.1",
+    "python-dotenv>=1.1.1",
+    "requests>=2.32.4",
+    "streamlit>=1.29.0",
+    "supabase>=2.18.1",
+    "ollama>=0.4.8",
+    "sentence-transformers>=5.1.0",
+]
