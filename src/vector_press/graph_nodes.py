@@ -16,7 +16,7 @@ class GraphNodes:
         """Initialize with RAG processor"""
         self.rag_processor = rag_processor
 
-    def user_input_node(self, state: AgentState) -> AgentState:
+    def _user_input_node(self, state: AgentState) -> AgentState:
         """User input node"""
         user_input = input("\nYou: ")
         return {
@@ -24,22 +24,7 @@ class GraphNodes:
             'messages': [HumanMessage(content=user_input)]
         }
 
-    def retrieve_chunks_node(self, state: AgentState) -> AgentState:
-        """Retrieve chunks node"""
-        # Get the latest user message
-        user_query = state['messages'][-1].content
-        # Retrieve relevant chunks
-        relevant_chunks = self.rag_processor.vector_store.retrieve_relevant_chunks(user_query)
-
-        print(f"Retrieved {len(relevant_chunks)} relevant chunks")
-
-        return {
-            **state,
-            'retrieved_chunks': relevant_chunks
-        }
-
-
-    def generate_response_node(self, state: AgentState) -> AgentState:
+    def _generate_response_node(self, state: AgentState) -> AgentState:
         """Generate response using RAG processor"""
         user_query = state['messages'][-1].content
         
@@ -51,7 +36,7 @@ class GraphNodes:
             'messages': [AIMessage(content=response_content)]
         }
 
-    def should_exit(self, state: AgentState) -> str:
+    def _should_exit(self, state: AgentState) -> str:
         """Conditional routing function"""
         messages = state['messages']
         last_message = messages[-1]

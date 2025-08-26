@@ -2,6 +2,8 @@ from langchain_ollama import ChatOllama, OllamaEmbeddings
 from langchain_groq import ChatGroq
 from langchain_core.messages import HumanMessage
 from ai_common.llm import load_ollama_model
+from ollama import Client
+from tqdm import tqdm
 import requests
 import json
 
@@ -9,7 +11,41 @@ import sys
 import os
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from config import settings
+from src.config import settings
+
+
+def check_and_pull_ollama_model(model_name: str, ollama_url: str) -> None:
+    """Check if model exists, pull if not."""
+    ollama_client = Client(host=ollama_url)
+    response = ollama_client.list()
+    available_model_names = [x.model for x in response.models]
+    
+    if model_name not in available_model_names:
+        print(f'Pulling {model_name}')
+        current_digest, bars = '', {}
+        for progress in ollama_client.pull(model=model_name, stream=True):
+            digest = progress.get('digest', '')
+            if digest != current_digest and current_digest in bars:
+                bars[current_digest].close()
+            if not digest:
+                print(progress.get('status'))
+                continue
+            if digest not in bars and (total := progress.get('total')):
+                bars[digest] = tqdm(total=total, desc=f'pulling {digest[7:19]}', unit='B', unit_scale=True)
+            if completed := progress.get('completed'):
+                bars[digest].update(completed - bars[digest].n)
+            current_digest = digest
+
+def load_ollama_model(model_name: str, ollama_url: str) -> None:
+    """Load model into memory (works for both LLM and embedding models)."""
+    check_and_pull_ollama_model(model_name=model_name, ollama_url=ollama_url)
+    ollama_client = Client(host=ollama_url)
+    
+    # Try embedding first (for embedding models), fallback to generate (for LLMs)
+    try:
+        ollama_client.embeddings(model=model_name, prompt="test")
+    except:
+        ollama_client.generate(model=model_name)
 
 
 class LLMManager:
@@ -39,51 +75,33 @@ class LLMManager:
                 num_ctx=8192
             )
             self.llm.invoke([HumanMessage(content="test")])
-            print(f"✅ [DEBUG] Using Ollama (remote) with model: {self.llm.model}, context: {self.llm.num_ctx}, base_url: {self.llm.base_url}")
+            print(f"✅ [DEBUG] Using Ollama (remote) with model: {self.llm.model}, context: {self.llm.num_ctx}")
         except Exception as e:
             print(f"Failed to initialize Ollama: {e}")
 
-    ###########################   EMBEDDING SUCKS WASTES TOO MUCH TIME   ##################################################
     def _initialize_embeddings(self):
-        """Initialize embedding model with resource-aware selection"""
+        """Initialize embedding model using LangChain's OllamaEmbeddings"""
 
         try:
-            # Pull the embedding model via HTTP API to remote Ollama server
-            print(f"🔄 [DEBUG] Pulling nomic-embed-text:v1.5 to remote server...")
-            response = requests.post(
-                f"{settings.OLLAMA_HOST}/api/pull",
-                #https://meet.google.com/vbp-rccg-tyj?authuser=0
-                #api_endpoint?authuser=0
-                json={"name": "nomic-embed-text:v1.5"},
-                timeout=300
+            print(f"🔄 [DEBUG] Initializing Nomic embedding model...")
+            
+            # Load/pull the embedding model first
+            load_ollama_model(model_name='nomic-embed-text', ollama_url=settings.OLLAMA_HOST)
+            
+            # Use LangChain's built-in OllamaEmbeddings
+            self.embedding_model = OllamaEmbeddings(
+                model="nomic-embed-text",
+                base_url=settings.OLLAMA_HOST
             )
-            if response.status_code == 200:
-                print(f"✅ [DEBUG] Successfully pulled nomic-embed-text:v1.5")
-            else:
-                print(f"⚠️ [DEBUG] Pull response: {response.text}")
             
-            # Create a simple embedding wrapper that uses direct Ollama API
-            class DirectOllamaEmbedding:
-                def __init__(self, base_url, model):
-                    self.base_url = base_url.rstrip('/')
-                    self.model = model
-                    
-                def embed_query(self, text):
-                    response = requests.post(
-                        f"{self.base_url}/api/embeddings",
-                        json={"model": self.model, "prompt": text},
-                        headers={"Content-Type": "application/json"},
-                        timeout=30
-                    )
-                    if response.status_code == 200:
-                        return response.json()["embedding"]
-                    else:
-                        raise Exception(f"Embedding failed: {response.text}")
+            # Test the embedding model
+            test_embedding = self.embedding_model.embed_query("test")
+            print(f"✅ [DEBUG] Nomic embedding initialized successfully")
+            print(f"✅ [DEBUG] Embedding dimension: {len(test_embedding)}")
             
-            self.embedding_model = DirectOllamaEmbedding(settings.OLLAMA_HOST, "nomic-embed-text:v1.5")
-            print(f"✅ [DEBUG] Using direct Ollama embedding: nomic-embed-text:v1.5 at {settings.OLLAMA_HOST}")
         except Exception as e:
             print(f"⚠️ [DEBUG] Failed to initialize embedding: {e}")
+            print(f"💡 [DEBUG] Make sure Ollama is running and accessible")
             self.embedding_model = None
 
     def get_llm(self):
@@ -93,3 +111,49 @@ class LLMManager:
     def get_embedding_model(self):
         """Get the initialized embedding model"""
         return self.embedding_model
+
+
+def main():
+    """Test the LLMManager initialization and functionality"""
+    print("🧪 Testing LLMManager")
+    print("=" * 50)
+    
+    try:
+        # Initialize LLMManager
+        print("🔧 Initializing LLMManager...")
+        llm_manager = LLMManager()
+
+        # Test LLM
+        print("\n🤖 Testing LLM...")
+        llm = llm_manager.get_llm()
+        if llm:
+            response = llm.invoke([HumanMessage(content="Say hello")])
+            print(f"✅ LLM Response: {response.content[:50]}...")
+        else:
+            print("❌ LLM not available")
+
+        # Test Embedding Model
+        print("\n🔤 Testing Embedding Model...")
+        embedding_model = llm_manager.get_embedding_model()
+        if embedding_model:
+            test_texts = ["artificial intelligence", "hello world", "python programming"]
+
+            for i, text in enumerate(test_texts, 1):
+                embedding = embedding_model.embed_query(text)
+                print(f"✅ Test {i}: '{text}' -> {len(embedding)} dimensions")
+                print(f"   📊 First 3 values: {embedding[:3]}")
+
+            print(f"✅ Embedding model working perfectly!")
+        else:
+            print("❌ Embedding model not available")
+            
+        print("\n🎉 All tests completed successfully!")
+        
+    except Exception as e:
+        print(f"❌ Error during testing: {e}")
+        import traceback
+        traceback.print_exc()
+
+
+if __name__ == "__main__":
+    main()

@@ -3,7 +3,8 @@
 
   -- Table 1: Guardian Articles Metadata
   create table guardian_articles (
-      id varchar primary key,                    -- Guardian article ID
+      id bigserial primary key,                  -- Auto-incrementing primary key
+      article_id varchar not null unique,       -- Custom article identifier (e.g., technology/2025/aug/05/google-step-artificial-general-intelligence-deepmind-agi)
       title varchar not null,
       headline varchar not null,
       section varchar not null,
@@ -21,8 +22,8 @@
 
   -- Table 2: Article Chunks with Embeddings
   create table article_chunks (
-      id bigserial primary key,
-      article_id varchar not null references guardian_articles(id) on delete cascade,
+      id bigserial primary key,                  -- Auto-incrementing primary key
+      article_id varchar not null references guardian_articles(article_id) on delete cascade,  -- Custom article identifier (e.g., technology/2025/aug/05/google-step-artificial-general-intelligence-deepmind-agi)
       chunk_number integer not null,
       content text not null,                     -- Chunk of full_text
       embedding vector(768) not null,          -- Nomic embedding
@@ -33,7 +34,8 @@
   );
 
   -- Function to search chunks with metadata
-  create function match_article_chunks (
+  -- or just create function
+  create or replace function match_article_chunks (
     query_embedding vector(768),
     match_count int default 10,
     section_filter varchar default null
@@ -63,13 +65,12 @@
       ga.publication_date,
       1 - (ac.embedding <=> query_embedding) as similarity
     from article_chunks ac
-    join guardian_articles ga on ac.article_id = ga.id
+    join guardian_articles ga on ac.article_id = ga.article_id
     where (section_filter is null or ga.section = section_filter)
     order by ac.embedding <=> query_embedding
     limit match_count;
   end;
   $$;
-
   -- Enable RLS
   alter table guardian_articles enable row level security;
   alter table article_chunks enable row level security;

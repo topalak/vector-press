@@ -1,11 +1,10 @@
 from supabase import create_client, Client
-from typing import List, Dict, Optional
-import numpy as np
+from typing import List, Dict
 import sys
 import os
 
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from config import settings
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+from src.config import settings
 
 
 class SupabaseVectorStore:
@@ -19,7 +18,6 @@ class SupabaseVectorStore:
         self.embedding_model = llm_manager.get_embedding_model()
         
         print(f"✅ [DEBUG] Supabase Vector Store initialized")
-        print(f"✅ [DEBUG] Supabase URL: {self.SUPABASE_URL[:50]}...")
 
     def retrieve_relevant_chunks(self, query: str, match_count: int = 10, section_filter: str = None) -> List[str]:
         """
@@ -68,7 +66,7 @@ class SupabaseVectorStore:
             print(f"🔥 [DEBUG] Error retrieving chunks: {e}")
             return []
 
-    def check_article_exists(self, article_id: str) -> bool:
+    def _check_article_exists(self, article_id: str) -> bool:
         """
         Check if an article already exists in the database
         
@@ -79,13 +77,13 @@ class SupabaseVectorStore:
             True if article exists, False otherwise
         """
         try:
-            result = self.supabase.table('guardian_articles').select('id').eq('id', article_id).execute()
+            result = self.supabase.table('guardian_articles').select('article_id').eq('article_id', article_id).execute()
             return len(result.data) > 0
         except Exception as e:
             print(f"🔥 [DEBUG] Error checking article existence: {e}")
             return False
 
-    def insert_article_metadata(self, metadata: Dict) -> bool:
+    def _insert_guardian_article_metadata(self, metadata: Dict) -> bool:
         """
         Insert article metadata into guardian_articles table
         
@@ -97,14 +95,14 @@ class SupabaseVectorStore:
         """
         try:
             # Check if article already exists
-            if self.check_article_exists(metadata['id']):
-                print(f"⚠️ [DEBUG] Article {metadata['id']} already exists, skipping...")
+            if self._check_article_exists(metadata['article_id']):
+                print(f"⚠️ [DEBUG] Article {metadata['article_id']} already exists, skipping...")
                 return True
             
             result = self.supabase.table('guardian_articles').insert(metadata).execute()
             
             if result.data:
-                print(f"✅ [DEBUG] Inserted article metadata: {metadata['id']}")
+                print(f"✅ [DEBUG] Inserted article metadata: {metadata['article_id']}")
                 return True
             else:
                 print(f"❌ [DEBUG] Failed to insert article metadata")
@@ -114,7 +112,7 @@ class SupabaseVectorStore:
             print(f"🔥 [DEBUG] Error inserting article metadata: {e}")
             return False
 
-    def insert_article_chunks(self, article_id: str, chunks: List[Dict]) -> bool:
+    def _insert_article_chunks(self, article_id: str, chunks: List[Dict]) -> bool:
         """
         Insert article chunks with embeddings into article_chunks table
         
@@ -154,7 +152,7 @@ class SupabaseVectorStore:
             return False
 
 
-    def delete_article(self, article_id: str) -> bool:
+    def _delete_article(self, article_id: str) -> bool:
         """
         Delete an article and all its chunks
         

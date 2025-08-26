@@ -33,7 +33,6 @@ def database_uploading_initialize():
         query="artificial intelligence",
         section="technology",
         page_size=20,
-        max_articles=10,
         order_by="relevance"
     )
     

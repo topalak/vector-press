@@ -1,16 +1,8 @@
-from typing import List, Dict, Optional
-import re
+from typing import List, Dict
 from datetime import datetime
-import sys
-import os
 
-# TODO
-#add primary key to first table
-
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from config import settings
-from vector_press.db.guardian_api import GuardianAPIClient
-from supabase_db import SupabaseVectorStore
+from .guardian_api import GuardianAPIClient
+from .supabase_db import SupabaseVectorStore
 
 
 
@@ -32,7 +24,7 @@ class ArticleProcessor:
         print(f"🔧 [DEBUG] Article Processor initialized")
         
     
-    def create_embeddings(self, chunks: List[str]) -> List[Dict]:
+    def _create_embeddings(self, chunks: List[str]) -> List[Dict]:
         """
         Create embeddings for text chunks
         
@@ -66,7 +58,7 @@ class ArticleProcessor:
         print(f"✅ [DEBUG] Created {len(embedded_chunks)} embeddings")
         return embedded_chunks
     
-    def process_article(self, article_data: Dict) -> bool:
+    def _process_article(self, article_data: Dict) -> bool:
         """
         Process a single article: extract, chunk, embed, and store
         
@@ -80,7 +72,7 @@ class ArticleProcessor:
         
         try:
             # Extract article content and metadata
-            extracted = self.guardian_client.extract_article_text(article_data)
+            extracted = self.guardian_client._extract_article_text(article_data)
             
             if not extracted:
                 print(f"❌ [DEBUG] Failed to extract article content")
@@ -94,7 +86,7 @@ class ArticleProcessor:
                 return False
             
             # Insert article metadata
-            if not self.supabase_store.insert_article_metadata(metadata):
+            if not self.supabase_store._insert_guardian_article_metadata(metadata):
                 print(f"❌ [DEBUG] Failed to insert article metadata")
                 return False
             
@@ -109,18 +101,18 @@ class ArticleProcessor:
                 return True
             
             # Create embeddings for chunks
-            embedded_chunks = self.create_embeddings(chunks)
+            embedded_chunks = self._create_embeddings(chunks)
             
             if not embedded_chunks:
                 print(f"❌ [DEBUG] Failed to create embeddings")
                 return False
             
             # Insert chunks into database
-            if not self.supabase_store.insert_article_chunks(metadata['id'], embedded_chunks):
+            if not self.supabase_store._insert_article_chunks(metadata['article_id'], embedded_chunks):
                 print(f"❌ [DEBUG] Failed to insert article chunks")
                 return False
             
-            print(f"✅ [DEBUG] Successfully processed article {metadata['id']}")
+            print(f"✅ [DEBUG] Successfully processed article {metadata['article_id']}")
             return True
             
         except Exception as e:
@@ -132,7 +124,6 @@ class ArticleProcessor:
                                    section: str = "technology",
                                    from_date: str = None,
                                    page_size: int = 50,
-                                   max_articles: int = None,
                                    order_by: str = None) -> Dict:
         """
         Fetch articles from Guardian API and process them
@@ -142,7 +133,6 @@ class ArticleProcessor:
             section: Guardian section (e.g. technology)
             from_date: Date filter (YYYY-MM-DD format)
             page_size: Number of articles per request
-            max_articles: Maximum number of articles to process
             order_by: Sort order for articles (e.g. relevance, newest, oldest)
             
         Returns:
@@ -183,10 +173,7 @@ class ArticleProcessor:
             stats['total_fetched'] = len(articles)
             
             print(f"📡 [DEBUG] Fetched {len(articles)} articles from API")
-            
-            if max_articles:
-                articles = articles[:max_articles]
-                print(f"🔧 [DEBUG] Limited to {len(articles)} articles")
+
             
             # Process each article
             for i, article in enumerate(articles):
@@ -194,15 +181,15 @@ class ArticleProcessor:
                 
                 try:
                     # Check if article already exists
-                    article_id = article.get('id', '')
-                    if self.supabase_store.check_article_exists(article_id):
-                        print(f"⚠️ [DEBUG] Article {article_id} already exists, skipping...")
+                    guardian_article_id = article.get('id', '')
+                    if self.supabase_store._check_article_exists(guardian_article_id):
+                        print(f"⚠️ [DEBUG] Article {guardian_article_id} already exists, skipping...")
                         stats['skipped'] += 1
                         continue
                     
                     stats['total_processed'] += 1
                     
-                    if self.process_article(article):
+                    if self._process_article(article):
                         stats['successful'] += 1
                         print(f"✅ [DEBUG] Article {i+1} processed successfully")
                     else:

@@ -1,13 +1,12 @@
 import requests
-import json
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional
+from datetime import datetime
+from typing import Dict
 import time
 import sys
 import os
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from config import settings
+from src.config import settings
 
 
 class GuardianAPIClient:
@@ -16,7 +15,6 @@ class GuardianAPIClient:
         self.base_url = "https://content.guardianapis.com"
 
         print(f"🔧 [DEBUG] Guardian API Client initialized")
-        print(f"🔧 [DEBUG] Base URL: {self.base_url}")
 
     def search_articles(self,
                         query: str = None,
@@ -24,7 +22,7 @@ class GuardianAPIClient:
                         from_date: str = None,
                         page_size: int = 200,
                         show_fields: str = "all",
-                        order_by: str = None) -> Dict:
+                        order_by: str = None) -> Dict | None:
         """
         Search for articles using Guardian API
         """
@@ -33,7 +31,7 @@ class GuardianAPIClient:
         # Build API endpoint
         endpoint = f"{self.base_url}/search"
 
-        # Build parameters
+        # Build required parameters
         params = {
             "api-key": self.api_key,
             "section": section,
@@ -51,30 +49,30 @@ class GuardianAPIClient:
         if order_by:
             params["order-by"] = order_by
 
-        print(f"📡 [DEBUG] Final API URL: {endpoint}")
+        print(f"[DEBUG] Final API URL: {endpoint}")
 
         try:
-            print(f"🚀 [DEBUG] Sending HTTP GET request...")
+            print(f"[DEBUG] Sending HTTP GET request...")
             start_time = time.time()
 
             response = requests.get(endpoint, params=params, timeout=30)
 
             end_time = time.time()
-            print(f"⏱️  [DEBUG] Request took {end_time - start_time:.2f} seconds")
-            print(f"📊 [DEBUG] Response headers: {dict(response.headers)}")
+            print(f"[DEBUG] Request took {end_time - start_time:.2f} seconds")
+            print(f"[DEBUG] Response headers: {dict(response.headers)}")
 
             if response.status_code == 200:
-                print(f"✅ [DEBUG] API request successful!")
+                print(f"[DEBUG] API request successful!")
                 return response.json()
             else:
-                print(f"❌ [DEBUG] Error details: {response.text}")
+                print(f"[DEBUG] Error details: {response.text}")
                 return None
 
         except requests.exceptions.RequestException as e:
-            print(f"🔥 [DEBUG] Request exception occurred: {e}")
+            print(f"[DEBUG] Request exception occurred: {e}")
             return None
 
-    def extract_article_text(self, article_data: Dict) -> Dict:
+    def _extract_article_text(self, article_data: Dict) -> Dict | None:
         """
         Extract and clean text from Guardian API article response
         """
@@ -124,7 +122,7 @@ class GuardianAPIClient:
 
             # Create structured metadata
             meta_data = {
-                "id": article_id,
+                "article_id": article_id,         # Guardian API ID as article_id (e.g., "world/2022/oct/21/russia-ukraine-war-latest...")
                 "title": title,
                 "headline": headline,
                 "section": section_name,

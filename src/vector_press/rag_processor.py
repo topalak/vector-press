@@ -17,15 +17,15 @@ class RAGProcessor:
         retrieved_chunks = self.supabase_vector_store.retrieve_relevant_chunks(user_query)
 
         # Handle cases with no relevant chunks (e.g., greetings)
-        if not retrieved_chunks: # TODO (change the meridian capital parts)
-            system_message = SystemMessage(content="""You are a helpful AI assistant for AAAAAAAAAAAAAAAAAAAAAAAAAAA 
-            The user's message doesn't seem to be asking about specific company information. 
-            Respond naturally and helpfully, and suggest they can ask about Meridian Capital's services, 
-            investment philosophy, team, or performance.""")
+        if not retrieved_chunks:
+            system_message = SystemMessage(content="""You are a helpful AI assistant for The Guardian's articles. 
+            The user's message doesn't seem to be asking about specific news information. 
+            Respond naturally and helpfully, and suggest they can ask about subject to retrieving news, 
+            technology, sport, politics etc.""")
         else:
             # Create context from retrieved chunks
             context_text = "\n\n".join(retrieved_chunks)
-            system_message = SystemMessage(content=f"""Based on the following context about Meridian Capital:
+            system_message = SystemMessage(content=f"""Based on the following context about The Guardian's news:
 
             {context_text}
 

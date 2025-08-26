@@ -10,6 +10,13 @@ from src.vector_press.rag_processor import RAGProcessor
 from src.vector_press.graph_nodes import GraphNodes, AgentState
 
 
+# TODO 1- we need to add user's messages to memory
+
+
+
+
+
+
 def main():
     """Main entry point - orchestrates all components"""
 
@@ -29,12 +36,12 @@ def main():
     # Build graph
     print("Building LangGraph...")
     graph = StateGraph(AgentState)
-    graph.add_node('user_input', graph_nodes.user_input_node)
-    graph.add_node('generate_response', graph_nodes.generate_response_node)
+    graph.add_node('user_input', graph_nodes._user_input_node)
+    graph.add_node('generate_response', graph_nodes._generate_response_node)
 
     # Connections
     graph.add_edge(START, 'user_input')
-    graph.add_conditional_edges('user_input', graph_nodes.should_exit, {"continue": 'generate_response', "end": END})
+    graph.add_conditional_edges('user_input', graph_nodes._should_exit, {"continue": 'generate_response', "end": END})
     graph.add_edge('generate_response', 'user_input')
 
     app = graph.compile()
