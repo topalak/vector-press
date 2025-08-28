@@ -17,6 +17,6 @@ dependencies = [
     "requests>=2.32.4",
     "streamlit>=1.29.0",
     "supabase>=2.18.1",
-    "ollama>=0.4.8",
     "sentence-transformers>=5.1.0",
+    "ollama>=0.5.3",
 ]

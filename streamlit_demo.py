@@ -20,7 +20,7 @@ def initialize_components():
             supabase_vector_store = SupabaseVectorStore(llm_manager)
             
             # Initialize RAG Processor
-            rag_processor = RAGProcessor(llm_manager.get_llm(), supabase_vector_store)
+            rag_processor = RAGProcessor(llm_manager, supabase_vector_store)
             
             st.session_state.rag_processor = rag_processor
             st.session_state.components_initialized = True

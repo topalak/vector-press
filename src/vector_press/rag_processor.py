@@ -1,13 +1,13 @@
 from langchain_core.messages import SystemMessage, AIMessage
 from src.vector_press.db.supabase_db import SupabaseVectorStore
-
+from src.vector_press.llm_embedding_initializer import LLMManager
 
 class RAGProcessor:
     """Handles RAG query processing and response generation"""
 
-    def __init__(self, llm, supabase_vector_store: SupabaseVectorStore):
-        """Initialize with LLM and Supabase vector store"""
-        self.llm = llm  # From LLMManager
+    def __init__(self, llm_manager: LLMManager, supabase_vector_store: SupabaseVectorStore):
+        """Initialize with LLM manager and Supabase vector store"""
+        self.llm = llm_manager.get_llm()  # Get LLM from manager
         self.supabase_vector_store = supabase_vector_store  # SupabaseVectorStore instance
 
     #add input's types
@@ -33,6 +33,7 @@ class RAGProcessor:
 
         # Keep original conversation flow with system context
         last_prompt = conversation_messages + [system_message]
+        #conversation message is our whole state without last message which is user's query
 
         response = self.llm.invoke(last_prompt)
         print(f'\nBig Brother Bertan: {response.content}')

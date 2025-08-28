@@ -1,11 +1,8 @@
 from langchain_ollama import ChatOllama, OllamaEmbeddings
-from langchain_groq import ChatGroq
 from langchain_core.messages import HumanMessage
 from ai_common.llm import load_ollama_model
-from ollama import Client
+from ollama import Client, ListResponse
 from tqdm import tqdm
-import requests
-import json
 
 import sys
 import os
@@ -17,9 +14,9 @@ from src.config import settings
 def check_and_pull_ollama_model(model_name: str, ollama_url: str) -> None:
     """Check if model exists, pull if not."""
     ollama_client = Client(host=ollama_url)
-    response = ollama_client.list()
+    response: ListResponse = ollama_client.list()
     available_model_names = [x.model for x in response.models]
-    
+
     if model_name not in available_model_names:
         print(f'Pulling {model_name}')
         current_digest, bars = '', {}
@@ -36,17 +33,17 @@ def check_and_pull_ollama_model(model_name: str, ollama_url: str) -> None:
                 bars[digest].update(completed - bars[digest].n)
             current_digest = digest
 
+
 def load_ollama_model(model_name: str, ollama_url: str) -> None:
     """Load model into memory (works for both LLM and embedding models)."""
     check_and_pull_ollama_model(model_name=model_name, ollama_url=ollama_url)
     ollama_client = Client(host=ollama_url)
-    
+
     # Try embedding first (for embedding models), fallback to generate (for LLMs)
     try:
         ollama_client.embeddings(model=model_name, prompt="test")
     except:
         ollama_client.generate(model=model_name)
-
 
 class LLMManager:
     """Manages LLM and embedding initialization with fallback logic"""
@@ -72,7 +69,8 @@ class LLMManager:
                 model='qwen3:8b',
                 base_url=settings.OLLAMA_HOST,
                 temperature=0,
-                num_ctx=8192
+                num_ctx=8192,
+                reasoning=True,
             )
             self.llm.invoke([HumanMessage(content="test")])
             print(f"✅ [DEBUG] Using Ollama (remote) with model: {self.llm.model}, context: {self.llm.num_ctx}")

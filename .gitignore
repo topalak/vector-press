@@ -18,5 +18,5 @@ out/
 # Environment Variables
 .env
 
-# Extra functions (development use only)
-#extra_functions.py
+# Test folder
+test/

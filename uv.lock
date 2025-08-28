@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = ">=3.13"
 
 [[package]]
@@ -1944,7 +1944,7 @@ requires-dist = [
     { name = "langchain-ollama", specifier = ">=0.3.6" },
     { name = "langchain-text-splitters", specifier = ">=0.3.9" },
     { name = "langgraph", specifier = ">=0.6.0" },
-    { name = "ollama", specifier = ">=0.4.8" },
+    { name = "ollama", specifier = ">=0.5.3" },
     { name = "pydantic", specifier = ">=2.11.7" },
     { name = "pydantic-settings", specifier = ">=2.10.1" },
     { name = "python-dotenv", specifier = ">=1.1.1" },

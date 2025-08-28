@@ -8,6 +8,10 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src.config import settings
 
+# TODO add extract method to search_articles method
+
+
+
 
 class GuardianAPIClient:
     def __init__(self):
@@ -25,6 +29,17 @@ class GuardianAPIClient:
                         order_by: str = None) -> Dict | None:
         """
         Search for articles using Guardian API
+        
+        Args:
+            query: Search query string (optional)
+            section: Guardian section to search in (default: "technology")
+            from_date: Filter articles from this date (YYYY-MM-DD format)
+            page_size: Number of articles to retrieve (max 200)
+            show_fields: Fields to include in response (default: "all")
+            order_by: Sort order (e.g., "relevance", "newest", "oldest")
+            
+        Returns:
+            API response dictionary if successful, None if failed
         """
         print(f"\n📡 [DEBUG] Starting API search...")
 
@@ -75,8 +90,18 @@ class GuardianAPIClient:
     def _extract_article_text(self, article_data: Dict) -> Dict | None:
         """
         Extract and clean text from Guardian API article response
+        
+        Args:
+            article_data: Article data dictionary from Guardian API response
+            
+        Returns:
+            Dictionary containing:
+                - metadata: Article metadata (ID, title, publication date, etc.)
+                - content: Combined full text content
+            Returns None if extraction fails
         """
         print(f"\n🔍 [DEBUG] Extracting text from article...")
+        _ = self.base_url
 
         try:
             # Basic article info

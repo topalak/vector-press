@@ -14,7 +14,6 @@ class Settings(BaseSettings):
     OUTPUT: str = os.path.join(ENV_FILE_DIR, 'out')
 
     class Config:
-        env_file = ".env"
         extra = "ignore"  # Ignore extra environment variables
 
         env_file_encoding = "utf-8"
