@@ -1,87 +1,38 @@
 from supabase import create_client, Client
-from typing import List, Dict
 import sys
 import os
 
+from src.vector_press.llm_embedding_initializer import LLMManager
+
+# Add src to path
+sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from src.config import settings
+
+from typing import List, Dict
+from datetime import datetime
+
+from .guardian_api import GuardianAPIClient, extract_article_text
+
+
+
+
+# TODO handle the light warning, we've defined the state variable but we aren't using it
+
 
 
 class SupabaseVectorStore:
     """Handles Supabase database operations for vector storage and retrieval"""
     
     def __init__(self, llm_manager):
-        """Initialize Supabase client and embedding model"""
+        """Initialize Supabase client, embedding model and Guardian API client"""
         self.SUPABASE_URL = settings.SUPABASE_URL
         self.SUPABASE_KEY = settings.SUPABASE_SERVICE_KEY
         self.supabase: Client = create_client(self.SUPABASE_URL, self.SUPABASE_KEY)
         self.embedding_model = llm_manager.get_embedding_model()
+        self.guardian_client = GuardianAPIClient(self)
         
         print(f"✅ [DEBUG] Supabase Vector Store initialized")
-
-    def retrieve_relevant_chunks(self, query: str, match_count: int = 10, section_filter: str = None) -> List[str]:
-        """
-        Retrieve relevant chunks from Supabase using semantic search
-        
-        Args:
-            query: Search query
-            match_count: Number of chunks to retrieve
-            section_filter: Optional section filter
-            
-        Returns:
-            List of relevant chunk contents
-        """
-        print(f"\n🔍 [DEBUG] Retrieving chunks for query: '{query[:100]}...'")
-        
-        try:
-            # Generate embedding for the query
-            query_embedding = self.embedding_model.embed_query(query)
-            print(f"🔍 [DEBUG] Generated query embedding with {len(query_embedding)} dimensions")
-            
-            # Call the match_article_chunks function
-            params = {
-                'query_embedding': query_embedding,
-                'match_count': match_count
-            }
-            
-            if section_filter:
-                params['section_filter'] = section_filter
-            
-            result = self.supabase.rpc('match_article_chunks', params).execute()
-            
-            if result.data:
-                chunks = [item['content'] for item in result.data]
-                print(f"✅ [DEBUG] Retrieved {len(chunks)} relevant chunks")
-                
-                # Print similarity scores for debugging
-                for i, item in enumerate(result.data[:3]):
-                    print(f"🔍 [DEBUG] Chunk {i+1} similarity: {item['similarity']:.4f}")
-                
-                return chunks
-            else:
-                print(f"⚠️ [DEBUG] No relevant chunks found for query")
-                return []
-                
-        except Exception as e:
-            print(f"🔥 [DEBUG] Error retrieving chunks: {e}")
-            return []
-
-    def _check_article_exists(self, article_id: str) -> bool:
-        """
-        Check if an article already exists in the database
-        
-        Args:
-            article_id: Guardian article ID
-            
-        Returns:
-            True if article exists, False otherwise
-        """
-        try:
-            result = self.supabase.table('guardian_articles').select('article_id').eq('article_id', article_id).execute()
-            return len(result.data) > 0
-        except Exception as e:
-            print(f"🔥 [DEBUG] Error checking article existence: {e}")
-            return False
 
     def _insert_guardian_article_metadata(self, metadata: Dict) -> bool:
         """
@@ -94,11 +45,6 @@ class SupabaseVectorStore:
             True if successful, False otherwise
         """
         try:
-            # Check if article already exists
-            if self._check_article_exists(metadata['article_id']):
-                print(f"⚠️ [DEBUG] Article {metadata['article_id']} already exists, skipping...")
-                return True
-            
             result = self.supabase.table('guardian_articles').insert(metadata).execute()
             
             if result.data:
@@ -151,27 +97,270 @@ class SupabaseVectorStore:
             print(f"🔥 [DEBUG] Error inserting article chunks: {e}")
             return False
 
-
-    def _delete_article(self, article_id: str) -> bool:
+    def check_article_exists(self, article_id: str) -> bool:
         """
-        Delete an article and all its chunks
+        Check if an article already exists in the database
         
         Args:
             article_id: Guardian article ID
             
         Returns:
-            True if successful, False otherwise
+            True if article exists, False otherwise
         """
         try:
-            # Delete chunks first (due to foreign key constraint)
-            self.supabase.table('article_chunks').delete().eq('article_id', article_id).execute()
-            
-            # Delete article metadata
-            result = self.supabase.table('guardian_articles').delete().eq('id', article_id).execute()
-            
-            print(f"✅ [DEBUG] Deleted article {article_id} and its chunks")
-            return True
-            
+            result = self.supabase.table('guardian_articles').select('article_id').eq('article_id', 
+                                                                                    article_id).execute()
+            return len(result.data) > 0
         except Exception as e:
-            print(f"🔥 [DEBUG] Error deleting article: {e}")
+            print(f"🔥 [DEBUG] Error checking article existence: {e}")
             return False
+
+    def retrieve_relevant_chunks(self, query: str, match_count: int = 10, section_filter: str = None) -> list[str]:
+        """
+        Retrieve relevant chunks from Supabase using semantic search
+        
+        Args:
+            query: Search query
+            match_count: Number of chunks to retrieve
+            section_filter: Optional section filter
+            
+        Returns:
+            List of relevant chunk contents
+        """
+
+        try:
+            # Generate embedding for the query
+            query_embedding = self.embedding_model.embed_query(query)
+            print(f"🔍 [DEBUG] Generated query embedding with {len(query_embedding)} dimensions")
+            
+            # Call the match_article_chunks function
+            params = {
+                'query_embedding': query_embedding,
+                'match_count': match_count
+            }
+            
+            if section_filter:
+                params['section_filter'] = section_filter
+            
+            result = self.supabase.rpc('match_article_chunks', params).execute()
+            
+            if result.data:
+                chunks = [item['content'] for item in result.data]
+                print(f"✅ [DEBUG] Retrieved {len(chunks)} relevant chunks")
+                
+                # Print similarity scores for debugging
+                for i, item in enumerate(result.data[:3]):
+                    print(f"🔍 [DEBUG] Chunk {i+1} similarity: {item['similarity']:.4f}")
+                
+                return chunks
+            else:
+                print(f"⚠️ [DEBUG] No relevant chunks found for query")
+                return []
+                
+        except Exception as e:
+            print(f"🔥 [DEBUG] Error retrieving chunks: {e}")
+            return []
+
+    def _process_article(self, article_data: Dict) -> bool:
+        """
+        Process a single article: extract, chunk, embed, and store
+
+        Args:
+            article_data: Article data from Guardian API
+
+        Returns:
+            True if successful, False otherwise
+        """
+        print(f"\n📰 [DEBUG] Processing article...")
+
+        try:
+            # Extract article content and metadata
+            extracted = extract_article_text(article_data)
+
+            if not extracted:
+                print(f"❌ [DEBUG] Failed to extract article content")
+                return False
+
+            metadata = extracted['metadata']
+            content = extracted['content']
+
+            if not content:
+                print(f"❌ [DEBUG] No content to process")
+                return False
+
+            # Insert article metadata
+            if not self._insert_guardian_article_metadata(metadata):
+                print(f"❌ [DEBUG] Failed to insert article metadata")
+                return False
+
+            # Split content into chunks
+            chunk_size = 1000
+            chunk_overlap = 200
+            chunks = [content[i:i + chunk_size] for i in range(0, len(content), chunk_size - chunk_overlap)]
+            print(f"🔧 [DEBUG] Split content into {len(chunks)} chunks")
+
+            if not chunks:
+                print(f"⚠️ [DEBUG] No chunks created from content")
+                return True
+
+            # Create embeddings for chunks
+            print(f"🔄 [DEBUG] Creating embeddings for {len(chunks)} chunks...")
+            embedded_chunks = []
+            
+            for i, chunk in enumerate(chunks):
+                try:
+                    # Generate embedding
+                    embedding = self.embedding_model.embed_query(chunk)
+                    embedded_chunks.append({
+                        'content': chunk,
+                        'embedding': embedding
+                    })
+                    
+                    if (i + 1) % 10 == 0:
+                        print(f"🔄 [DEBUG] Processed {i + 1}/{len(chunks)} chunks")
+                        
+                except Exception as e:
+                    print(f"🔥 [DEBUG] Error creating embedding for chunk {i}: {e}")
+                    continue
+            
+            print(f"✅ [DEBUG] Created {len(embedded_chunks)} embeddings")
+            
+            if not embedded_chunks:
+                print(f"❌ [DEBUG] Failed to create embeddings")
+                return False
+
+            # Insert chunks into database
+            if not self._insert_article_chunks(metadata['article_id'], embedded_chunks):
+                print(f"❌ [DEBUG] Failed to insert article chunks")
+                return False
+
+            print(f"✅ [DEBUG] Successfully processed article {metadata['article_id']}")
+            return True
+
+        except Exception as e:
+            print(f"🔥 [DEBUG] Error processing article: {e}")
+            return False
+
+    def database_uploading(self,
+                           query: str = None,
+                           section: str = "technology",
+                           from_date: str = None,
+                           page_size: int = 200,
+                           order_by: str = None) -> Dict:
+        """
+        Fetch articles from Guardian API and process them
+
+        Args:
+            query: Search query
+            section: Guardian section (e.g. technology)
+            from_date: Date filter (YYYY-MM-DD format)
+            page_size: Number of articles per request
+            order_by: Sort order for articles (e.g. relevance, newest, oldest)
+
+        Returns:
+            Processing statistics
+        """
+        print(f"\n🚀 [DEBUG] Starting article fetch and processing...")
+        print(f"🚀 [DEBUG] Query: {query}")
+        print(f"🚀 [DEBUG] Section: {section}")
+        print(f"🚀 [DEBUG] From date: {from_date}")
+        print(f"🚀 [DEBUG] Page size: {page_size}")
+        print(f"🚀 [DEBUG] Order by: {order_by}")
+
+        stats = {
+            'total_fetched': 0,
+            'total_processed': 0,
+            'successful': 0,
+            'failed': 0,
+            'skipped': 0,
+            'start_time': datetime.now(),
+            'end_time': None
+        }
+
+        try:
+            # Fetch articles from Guardian API
+            extracted_articles = self.guardian_client.search_articles(
+                query=query,
+                section=section,
+                from_date=from_date,
+                page_size=page_size,
+                order_by=order_by
+            )
+
+            if not extracted_articles:
+                print(f"❌ [DEBUG] Failed to fetch articles from API")
+                return stats
+
+            stats['total_fetched'] = len(extracted_articles)
+
+            print(f"📡 [DEBUG] Fetched {len(extracted_articles)} articles from API")
+
+            # Process each extracted article
+            for i, extracted_article in enumerate(extracted_articles):
+                print(f"\n📰 [DEBUG] Processing article {i + 1}/{len(extracted_articles)}")
+                try:
+                    stats['total_processed'] += 1
+
+                    if self._process_article(extracted_article):
+                        stats['successful'] += 1
+                        print(f"✅ [DEBUG] Article {i + 1} processed successfully")
+                    else:
+                        stats['failed'] += 1
+                        print(f"❌ [DEBUG] Article {i + 1} processing failed")
+
+                except Exception as e:
+                    stats['failed'] += 1
+                    print(f"🔥 [DEBUG] Error processing article {i + 1}: {e}")
+
+            stats['end_time'] = datetime.now()
+            duration = stats['end_time'] - stats['start_time']
+
+            print(f"\n📊 [DEBUG] Processing completed!")
+            print(f"📊 [DEBUG] Total fetched: {stats['total_fetched']}")
+            print(f"📊 [DEBUG] Total processed: {stats['total_processed']}")
+            print(f"📊 [DEBUG] Successful: {stats['successful']}")
+            print(f"📊 [DEBUG] Failed: {stats['failed']}")
+            print(f"📊 [DEBUG] Skipped: {stats['skipped']}")
+            print(f"📊 [DEBUG] Duration: {duration.total_seconds():.2f} seconds")
+
+            # Print database statistics
+            print(f"📊 [DEBUG] Processing completed successfully")
+
+            return stats
+
+        except Exception as e:
+            print(f"🔥 [DEBUG] Error in fetch and process: {e}")
+            stats['end_time'] = datetime.now()
+            return stats
+
+
+def main():
+    """Main execution flow"""
+    print("Vector-Press Guardian Database Population")
+    print("=" * 50)
+    # Initialize components
+    llm_manager = LLMManager()
+    supabase_store = SupabaseVectorStore(llm_manager)
+
+    try:
+        print("🚀 Populating database with Guardian articles...")
+
+        # Fetch and process articles
+        stats = supabase_store.database_uploading(
+            query="artificial intelligence",
+            section="technology",
+            page_size=200,
+            order_by="relevance"
+        )
+
+        print("\n✅ Database population completed successfully!")
+
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        import traceback
+        traceback.print_exc()
+
+
+if __name__ == "__main__":
+    main()
+
