@@ -4,7 +4,7 @@ Vector Press - RAG Chatbot Application
 Simple entry point to run the application
 """
 
-from src.vector_press.rag_processor import main
+from vector_press.rag_processor import main
 
 # TODO, check for supabase slow queries and test the accuracy of calculating similarity function
 # TODO check streamlit is working

@@ -1,8 +1,4 @@
-# Vector-Press
-
-![Vector Press Graph](vector_press_graph.png)
-
-## 📁 Project Structure
+# 📁 Project Structure
 
 ```
 vector-press/

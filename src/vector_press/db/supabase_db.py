@@ -1,18 +1,16 @@
 from supabase import create_client, Client
 import sys
 import os
-
-from src.vector_press.llm_embedding_initializer import LLMManager
-
-# Add src to path
-sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-from src.config import settings
-
 from typing import List, Dict
 from datetime import datetime
 
-from .guardian_api import GuardianAPIClient, extract_article_text
+# Add src to path for config access
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+from src.config import settings
+
+# Use clean package imports
+from ..llm_embedding_initializer import LLMManager
+from . import GuardianAPIClient, extract_article_text
 
 
 
@@ -115,7 +113,7 @@ class SupabaseVectorStore:
             print(f"🔥 [DEBUG] Error checking article existence: {e}")
             return False
 
-    def retrieve_relevant_chunks(self, query: str, match_count: int = 10, section_filter: str = None, similarity_threshold: float = 0.5) -> list[str]:
+    def retrieve_relevant_chunks(self, query: str, match_count: int = 10, section_filter: str = None, similarity_threshold: float = 0.7) -> list[str]:
         """
         Retrieve relevant chunks from Supabase using semantic search
         
@@ -360,7 +358,11 @@ def main():
             order_by="relevance"
         )
 
-        print("\n✅ Database population completed successfully!")
+        if stats:
+            print(f"\n✅ Database population completed successfully!")
+            print(f"📊 Processing stats: {stats}")
+        else:
+            print("\n❌ Database population failed!")
 
     except Exception as e:
         print(f"❌ Error: {e}")

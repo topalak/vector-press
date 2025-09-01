@@ -6,7 +6,7 @@ import sys
 import os
 
 # TODO add data validation to methods
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from src.config import settings
 
 def extract_article_text(article_data: Dict) -> Dict | None:
