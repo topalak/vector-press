@@ -1,6 +1,6 @@
 from langchain_ollama import ChatOllama, OllamaEmbeddings
 from langchain_core.messages import HumanMessage
-from ai_common.llm import load_ollama_model
+#from ai_common.llm import load_ollama_model
 from ollama import Client, ListResponse
 from tqdm import tqdm
 

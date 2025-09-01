@@ -115,7 +115,7 @@ class SupabaseVectorStore:
             print(f"🔥 [DEBUG] Error checking article existence: {e}")
             return False
 
-    def retrieve_relevant_chunks(self, query: str, match_count: int = 10, section_filter: str = None) -> list[str]:
+    def retrieve_relevant_chunks(self, query: str, match_count: int = 10, section_filter: str = None, similarity_threshold: float = 0.5) -> list[str]:
         """
         Retrieve relevant chunks from Supabase using semantic search
         
@@ -123,9 +123,10 @@ class SupabaseVectorStore:
             query: Search query
             match_count: Number of chunks to retrieve
             section_filter: Optional section filter
+            similarity_threshold: Minimum similarity score to include chunk (0.0 to 1.0)
             
         Returns:
-            List of relevant chunk contents
+            List of relevant chunk contents above the similarity threshold
         """
 
         try:
@@ -145,14 +146,20 @@ class SupabaseVectorStore:
             result = self.supabase.rpc('match_article_chunks', params).execute()
             
             if result.data:
-                chunks = [item['content'] for item in result.data]
-                print(f"✅ [DEBUG] Retrieved {len(chunks)} relevant chunks")
+                # Filter chunks by similarity threshold
+                filtered_chunks = [
+                    item['content'] for item in result.data 
+                    if item['similarity'] >= similarity_threshold
+                ]
                 
-                # Print similarity scores for debugging
-                for i, item in enumerate(result.data[:3]):
-                    print(f"🔍 [DEBUG] Chunk {i+1} similarity: {item['similarity']:.4f}")
+                print(f"🔍 [DEBUG] Retrieved {len(result.data)} total chunks, {len(filtered_chunks)} above threshold {similarity_threshold}")
                 
-                return chunks
+                # Print similarity scores for all chunks
+                for i, item in enumerate(result.data):
+                    above_threshold = "✅" if item['similarity'] >= similarity_threshold else "❌"
+                    print(f"🔍 [DEBUG] Chunk {i+1} similarity: {item['similarity']:.4f} {above_threshold}")
+                
+                return filtered_chunks
             else:
                 print(f"⚠️ [DEBUG] No relevant chunks found for query")
                 return []

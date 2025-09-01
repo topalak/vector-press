@@ -1,5 +1,5 @@
 from langchain_core.messages import HumanMessage, AIMessage, BaseMessage, SystemMessage
-from typing import TypedDict, Annotated, Sequence
+from typing import TypedDict, Annotated
 from langgraph.graph.message import add_messages
 from src.vector_press.db.supabase_db import SupabaseVectorStore
 from src.vector_press.llm_embedding_initializer import LLMManager
@@ -21,10 +21,11 @@ INSTRUCTIONS = """You are a helpful AI assistant for The Guardian's articles.
             Please respond helpfully based on the available information.
             
             """
+# TODO look the video why is he using should continue
 
-class AgentState(TypedDict, total=False):
+class AgentState(TypedDict):
     """State class for LangGraph conversation flow"""
-    messages: Annotated[Sequence[BaseMessage], add_messages]  # keeps every type of message with BaseMessage
+    messages: Annotated[list[BaseMessage], add_messages]  # keeps every type of message with BaseMessage
     retrieved_chunks: list[str]
     query: str
 
@@ -32,90 +33,80 @@ class AgentState(TypedDict, total=False):
 class RAGProcessor:
     """Handles RAG query processing and response generation"""
 
-    def __init__(self, llm_manager: LLMManager, supabase_vector_store: SupabaseVectorStore):
-        """Initialize with LLM manager and Supabase vector store"""
+    def __init__(self, llm_manager: LLMManager, supabase_vector_store: SupabaseVectorStore, state: AgentState):
+        """Initialize with LLM manager, Supabase vector store, and add INSTRUCTIONS to state"""
         self.llm = llm_manager.get_llm()  # Get LLM from manager
         self.supabase_vector_store = supabase_vector_store  # SupabaseVectorStore instance
-        # Note: embedding_model available via supabase_vector_store if needed
-    
-    def initialize_state(self) -> AgentState:
-        """Initialize state with INSTRUCTIONS as SystemMessage (called only once)"""
-        return {
-            "messages": [SystemMessage(content=INSTRUCTIONS)],
-            "retrieved_chunks": [],
-            "query": ""
-        }
+
+        state['messages'].append(SystemMessage(content=INSTRUCTIONS))
 
     def process_query(self, state: AgentState) -> AgentState:
         """Process user query with RAG and return updated state"""
-        user_query = state['messages'][-1].content
+        user_input = state.get('query', '')
         
-        # Retrieve relevant chunks
-        retrieved_chunks = self.supabase_vector_store.retrieve_relevant_chunks(user_query)
-        
-        # Create context text (empty if no chunks)
+        retrieved_chunks = self.supabase_vector_store.retrieve_relevant_chunks(
+            user_input, 
+            match_count=10, 
+            similarity_threshold=0.5
+        )
+        # TODO we are not adding retrieved_chunks to the state's retrieved_chunks we can remove it because actually we dont need it because we are adding it to the user's_input
+        # TODO we are retrieving 10 chunks and decreasing it to the 3 this means more computation
         context_text = "\n\n".join(retrieved_chunks) if retrieved_chunks else ""
-
+        # ✅ Now filtering chunks with similarity threshold of 0.5
+        enhanced_user_input = f"{user_input}\n\nContext:\n{context_text}" if context_text else user_input
+        
+        state['messages'].append(HumanMessage(content=enhanced_user_input))
 
         response = self.llm.invoke(state['messages'])
         print(f'\nBig Brother Bertan: {response.content}')
-
-        #print(f'Current memory: {[*state["messages"], AIMessage(content=response.content)]}')
 
         # Return updated state
         return {
             **state,
             'messages': [
-                state['messages'][-1],  # Keep the user message
-                AIMessage(content=response.content)  # Add AI response
+                *state['messages'],
+                AIMessage(content=response.content)
             ],
             'retrieved_chunks': retrieved_chunks,
-            'query': user_query
+            'query': user_input  # Use original user input
         }
 
-def should_continue(state: AgentState) -> str:
-    """Conditional routing function"""
-    messages = state['messages']
-    last_message = messages[-1]
-
-    if isinstance(last_message, HumanMessage) and last_message.content.lower() == "exit":
-        return "end"
-    else:
-        return "continue"
 
 def main():
     from langgraph.graph import StateGraph, START, END
     
+    # Start the conversation
+    print("\nStarting RAG Chatbot (type 'exit' to quit)...")
+    state: AgentState = {
+        "messages": [],
+        "retrieved_chunks": [],
+        "query": ""
+    }
+    
     llm_manager = LLMManager()
     supabase_vector_store = SupabaseVectorStore(llm_manager)
-    rag_processor = RAGProcessor(llm_manager, supabase_vector_store)
+    rag_processor = RAGProcessor(llm_manager, supabase_vector_store, state)
 
     # Build simplified graph with single node
     graph = StateGraph(AgentState)
     graph.add_node('process_query', rag_processor.process_query)
 
-    # Simplified connections
+    # Simplified connections - no looping, just single execution
     graph.add_edge(START, 'process_query')
-    graph.add_conditional_edges('process_query', should_continue, {
-        "continue": 'process_query',  # Loop back for next user input
-        "end": END
-    })
+    graph.add_edge('process_query', END)
 
     app = graph.compile()
-
-    # Start the conversation
-    print("\nStarting RAG Chatbot (type 'exit' to quit)...")
-    state = rag_processor.initialize_state()
     
     while True:
         user_input = input("\nYou: ").strip()
+        #why are we using strip?
         if user_input.lower() == "exit":
             print("\nGoodbye!")
             break
-            
-        # Add user message to state
-        state["messages"].append(HumanMessage(content=user_input))
         
+        # Store user input in query field for process_query to access
+        state["query"] = user_input
+
         # Process through the graph
         state = app.invoke(state)
 
