@@ -6,7 +6,6 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "ai-common @ git+https://github.com/bgunyel/ai-common.git@main",
-    "einops>=0.8.1",
     "langchain-groq>=0.3.6",
     "langchain-ollama>=0.3.6",
     "langchain-text-splitters>=0.3.9",

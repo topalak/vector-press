@@ -6,7 +6,6 @@
       id bigserial primary key,                  -- Auto-incrementing primary key
       article_id varchar not null unique,       -- Custom article identifier (e.g., technology/2025/aug/05/google-step-artificial-general-intelligence-deepmind-agi)
       title varchar not null,
-      headline varchar not null,
       section varchar not null,
       publication_date timestamp with time zone not null,
       url varchar not null,
@@ -71,6 +70,23 @@
     limit match_count;
   end;
   $$;
+
+  -- Function to increment search count
+  create or replace function increment_search_count(target_article_id varchar)
+  returns void
+  language plpgsql
+  as $$
+  begin
+    update guardian_articles 
+    set search_metadata = jsonb_set(
+      search_metadata, 
+      '{count}', 
+      to_jsonb(coalesce((search_metadata->>'count')::int, 0) + 1)
+    )
+    where article_id = target_article_id;
+  end;
+  $$;
+
   -- Enable RLS
   alter table guardian_articles enable row level security;
   alter table article_chunks enable row level security;

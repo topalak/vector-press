@@ -40,6 +40,8 @@ class RAGProcessor:
             match_count=10, 
             similarity_threshold=0.7
         )
+        #######################################################################################################################################
+        # TODO when we are retrieving related chunks we have to retrieve some mete_data also like related chunks news heading, publication time,
 
         context_text = "\n\n".join(retrieved_chunks) if retrieved_chunks else ""
         enhanced_user_input = f"{user_input}\n\nContext:\n{context_text}" if context_text else user_input

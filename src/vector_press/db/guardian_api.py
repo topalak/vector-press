@@ -23,6 +23,9 @@ def extract_article_text(article_data: Dict) -> Dict | None:
         Returns None if extraction fails
     """
     print(f"\n🔍 [DEBUG] Extracting text from article...")
+    
+    import time
+    start_time = time.time()
 
     try:
         # Basic article info
@@ -32,6 +35,8 @@ def extract_article_text(article_data: Dict) -> Dict | None:
         publication_date = article_data.get("webPublicationDate", "")
         section_name = article_data.get("sectionName", "")
 
+        # TODO we arent using all results which sharing with us, maybe we can save time fetching exactly what i need
+
         print(f"🔍 [DEBUG] Article ID: {article_id}")
 
         # Extract fields if available
@@ -39,20 +44,18 @@ def extract_article_text(article_data: Dict) -> Dict | None:
         print(f"🔍 [DEBUG] Available fields: {list(fields.keys())}")
 
         # Get different text content
-        headline = fields.get("headline", title)
         standfirst = fields.get("standfirst", "")  # Summary/subtitle
         body_text = fields.get("bodyText", "")
         trail_text = fields.get("trailText", "")  # Preview text
 
-        print(f"🔍 [DEBUG] Headline length: {len(headline)} chars")
         print(f"🔍 [DEBUG] Standfirst length: {len(standfirst)} chars")
         print(f"🔍 [DEBUG] Body text length: {len(body_text)} chars")
         print(f"🔍 [DEBUG] Trail text length: {len(trail_text)} chars")
 
         # Combine all text content
         full_text_parts = []
-        if headline:
-            full_text_parts.append(headline)
+        if title:
+            full_text_parts.append(title)
         if standfirst:
             full_text_parts.append(standfirst)
         if body_text:
@@ -67,10 +70,8 @@ def extract_article_text(article_data: Dict) -> Dict | None:
 
         # Create structured metadata
         meta_data = {
-            "article_id": article_id,
-            # Guardian API ID as article_id (e.g., "world/2022/oct/21/russia-ukraine-war-latest...")
+            "article_id": article_id,  # Guardian API ID as article_id (e.g., "world/2022/oct/21/russia-ukraine-war-latest...")
             "title": title,
-            "headline": headline,
             "section": section_name,
             "publication_date": publication_date,
             "url": url,
@@ -84,6 +85,7 @@ def extract_article_text(article_data: Dict) -> Dict | None:
 
         print(f"✅ [DEBUG] Article extraction completed!")
         print(f"✅ [DEBUG] Final word count: {meta_data['word_count']} words")
+        print(f"⏱️ [DEBUG] extract_article_text took {time.time() - start_time:.4f} seconds")
 
         return {
             'metadata': meta_data,
@@ -104,18 +106,18 @@ class GuardianAPIClient:
 
     def search_articles(self,
                         query: str = None,
-                        section: str = "technology",
+                        section: str = None,
                         from_date: str = None,
                         page_size: int = 200,
                         show_fields: str = "all",
                         order_by: str = None,
-                        max_pages: int = 1) -> list[Dict] | None:
+                        max_pages: int = 20) -> list[Dict] | None:
         """
         Search for articles using Guardian API and extract their content
         
         Args:
             query: Search query string (optional)
-            section: Guardian section to search in (default: "technology")
+            section: Guardian section to search
             from_date: Filter articles from this date (YYYY-MM-DD format)
             page_size: Number of articles to retrieve per page (max 200)
             show_fields: Fields to include in response (default: "all")
@@ -168,23 +170,26 @@ class GuardianAPIClient:
 
                 if response.status_code == 200:
                     api_data = response.json()
+                    #to see raw response
                     articles_data = api_data.get('response', {}).get('results', [])
+                    #articles_data = response.json().get('response', {}).get('results', [])
                     
                     if not articles_data:
                         print(f"[DEBUG] No articles found on page {page}. Stopping pagination.")
                         break
-                    
                     print(f"[DEBUG] Found {len(articles_data)} articles on page {page}")
 
                     # Check if articles already exist before processing
                     filtered_articles = []
                     for article_data in articles_data:
                         article_id = article_data.get("id", "")
+                        # TODO maybe we can save time like controlling a similar track instead of controlling the whole part of the article_id
                         if not self.supabase_store.check_article_exists(article_id):
                             filtered_articles.append(article_data)
                         else:
                             print(f"⚠️ [DEBUG] Article {article_id} already exists, skipping...")
-                    
+                    #we are keeping both variable which they are contains exactly same values we can remove one of them after the updating part
+                    #updating articles data
                     articles_data = filtered_articles
                     if not articles_data:
                         print(f"[DEBUG] All articles on page {page} already exist. Skipping to next page.")
@@ -217,6 +222,7 @@ class GuardianAPIClient:
             print(f"📊 [DEBUG] Total time: {total_time:.2f} seconds")
             
             return all_extracted_articles if all_extracted_articles else None
+            # TODO check here again
 
         except requests.exceptions.RequestException as e:
             print(f"🔥 [DEBUG] Request exception occurred: {e}")

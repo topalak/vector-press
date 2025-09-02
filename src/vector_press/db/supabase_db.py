@@ -9,14 +9,25 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(
 from src.config import settings
 
 # Use clean package imports
-from ..llm_embedding_initializer import LLMManager
-from . import GuardianAPIClient, extract_article_text
-
-
-
-
-# TODO handle the light warning, we've defined the state variable but we aren't using it
-
+try:
+    from ..llm_embedding_initializer import LLMManager
+    from . import GuardianAPIClient
+except ImportError:
+    # Fallback for direct execution (debug mode)
+    import sys
+    import os
+    # Add the parent directories to path
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    parent_dir = os.path.dirname(current_dir)  # vector_press
+    grandparent_dir = os.path.dirname(parent_dir)  # src
+    sys.path.insert(0, parent_dir)
+    sys.path.insert(0, grandparent_dir)
+    
+    from llm_embedding_initializer import LLMManager
+    # Since we're in the db directory, import from the same directory
+    sys.path.insert(0, current_dir)
+    from guardian_api import GuardianAPIClient
+# TODO remove fallback option it is for only debug mode
 
 
 class SupabaseVectorStore:
@@ -106,8 +117,11 @@ class SupabaseVectorStore:
             True if article exists, False otherwise
         """
         try:
+            import time
+            start_time = time.time()
             result = self.supabase.table('guardian_articles').select('article_id').eq('article_id', 
                                                                                     article_id).execute()
+            print(f"⏱️ [DEBUG] check_article_exists took {time.time() - start_time:.4f} seconds")
             return len(result.data) > 0
         except Exception as e:
             print(f"🔥 [DEBUG] Error checking article existence: {e}")
@@ -150,6 +164,15 @@ class SupabaseVectorStore:
                     if item['similarity'] >= similarity_threshold
                 ]
                 
+                # Track retrieved articles - increment search_metadata counter
+                for item in result.data:
+                    if item['similarity'] >= similarity_threshold:
+                        try:
+                            # Increment the counter in search_metadata
+                            self.supabase.rpc('increment_search_count', {'target_article_id': item['article_id']}).execute()
+                        except Exception as e:
+                            print(f"⚠️ [DEBUG] Failed to update search counter for article {item['article_id']}: {e}")
+                
                 print(f"🔍 [DEBUG] Retrieved {len(result.data)} total chunks, {len(filtered_chunks)} above threshold {similarity_threshold}")
                 
                 # Print similarity scores for all chunks
@@ -166,28 +189,23 @@ class SupabaseVectorStore:
             print(f"🔥 [DEBUG] Error retrieving chunks: {e}")
             return []
 
-    def _process_article(self, article_data: Dict) -> bool:
+    def _process_extracted_article(self, extracted_data: Dict) -> bool:
         """
-        Process a single article: extract, chunk, embed, and store
+        Process already extracted article: chunk, embed, and store
 
         Args:
-            article_data: Article data from Guardian API
+            extracted_data: Dictionary with 'metadata' and 'content' from extract_article_text()
 
         Returns:
             True if successful, False otherwise
         """
-        print(f"\n📰 [DEBUG] Processing article...")
+        print(f"\n📰 [DEBUG] Processing extracted article...")
 
         try:
-            # Extract article content and metadata
-            extracted = extract_article_text(article_data)
-
-            if not extracted:
-                print(f"❌ [DEBUG] Failed to extract article content")
-                return False
-
-            metadata = extracted['metadata']
-            content = extracted['content']
+            metadata = extracted_data['metadata']
+            #metadata is _insert_guardian_article_metadata's input it's coming from extracted_data which it is in search_articles method
+            content = extracted_data['content']
+            #same as metadata it is for splitting and they will convert chunks to set ready to embedding and inserting to the article chunks
 
             if not content:
                 print(f"❌ [DEBUG] No content to process")
@@ -199,6 +217,7 @@ class SupabaseVectorStore:
                 return False
 
             # Split content into chunks
+            # TODO after fetching articles analyze and get mean of word and char counts and set better chunk size and chunk overlap
             chunk_size = 1000
             chunk_overlap = 200
             chunks = [content[i:i + chunk_size] for i in range(0, len(content), chunk_size - chunk_overlap)]
@@ -243,15 +262,16 @@ class SupabaseVectorStore:
             return True
 
         except Exception as e:
-            print(f"🔥 [DEBUG] Error processing article: {e}")
+            print(f"🔥 [DEBUG] Error processing extracted article: {e}")
             return False
 
     def database_uploading(self,
                            query: str = None,
-                           section: str = "technology",
+                           section: str = None,
                            from_date: str = None,
                            page_size: int = 200,
-                           order_by: str = None) -> Dict:
+                           order_by: str = None,
+                           max_pages: int = 20) -> Dict:
         """
         Fetch articles from Guardian API and process them
 
@@ -261,6 +281,7 @@ class SupabaseVectorStore:
             from_date: Date filter (YYYY-MM-DD format)
             page_size: Number of articles per request
             order_by: Sort order for articles (e.g. relevance, newest, oldest)
+            max_pages: Upper limit for page number
 
         Returns:
             Processing statistics
@@ -281,6 +302,7 @@ class SupabaseVectorStore:
             'start_time': datetime.now(),
             'end_time': None
         }
+        # TODO check is there any necessary stats part
 
         try:
             # Fetch articles from Guardian API
@@ -289,7 +311,8 @@ class SupabaseVectorStore:
                 section=section,
                 from_date=from_date,
                 page_size=page_size,
-                order_by=order_by
+                order_by=order_by,
+                max_pages=max_pages,
             )
 
             if not extracted_articles:
@@ -300,13 +323,13 @@ class SupabaseVectorStore:
 
             print(f"📡 [DEBUG] Fetched {len(extracted_articles)} articles from API")
 
-            # Process each extracted article
+            # Process each extracted article (already extracted in guardian_api.py)
             for i, extracted_article in enumerate(extracted_articles):
                 print(f"\n📰 [DEBUG] Processing article {i + 1}/{len(extracted_articles)}")
                 try:
                     stats['total_processed'] += 1
 
-                    if self._process_article(extracted_article):
+                    if self._process_extracted_article(extracted_article):
                         stats['successful'] += 1
                         print(f"✅ [DEBUG] Article {i + 1} processed successfully")
                     else:
@@ -351,12 +374,10 @@ def main():
         print("🚀 Populating database with Guardian articles...")
 
         # Fetch and process articles
-        stats = supabase_store.database_uploading(
-            query="artificial intelligence",
-            section="technology",
-            page_size=200,
-            order_by="relevance"
-        )
+        stats = supabase_store.database_uploading(query="artificial intelligence",
+                                                  page_size=200,
+                                                  order_by="relevance",
+                                                  max_pages=3)
 
         if stats:
             print(f"\n✅ Database population completed successfully!")
