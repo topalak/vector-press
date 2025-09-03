@@ -78,11 +78,7 @@
   as $$
   begin
     update guardian_articles 
-    set search_metadata = jsonb_set(
-      search_metadata, 
-      '{count}', 
-      to_jsonb(coalesce((search_metadata->>'count')::int, 0) + 1)
-    )
+    set search_metadata = to_jsonb(coalesce((search_metadata->>'count')::int, 0) + 1)
     where article_id = target_article_id;
   end;
   $$;
