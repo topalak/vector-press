@@ -30,6 +30,8 @@ def extract_article_text(article_data: Dict) -> Dict | None:
     try:
         # Basic article info
         article_id = article_data.get("id", "")
+        word_count = article_data.get("word_count", 0)  #there would be an error for adding 0
+        char_count = article_data.get("char_count", 0)
         title = article_data.get("webTitle", "")
         url = article_data.get("webUrl", "")
         publication_date = article_data.get("webPublicationDate", "")
@@ -78,8 +80,8 @@ def extract_article_text(article_data: Dict) -> Dict | None:
             "summary": standfirst,
             "body_text": body_text,
             "trail_text": trail_text,
-            "word_count": len(full_text.split()),
-            "char_count": len(full_text),
+            "word_count": word_count,
+            "char_count": char_count,
             "fetch_time": datetime.now().isoformat()
         }
 
@@ -184,6 +186,7 @@ class GuardianAPIClient:
                     for article_data in articles_data:
                         article_id = article_data.get("id", "")
                         # TODO maybe we can save time like controlling a similar track instead of controlling the whole part of the article_id
+                        # TODO remove check_Article_exist method at the first time storing
                         if not self.supabase_store.check_article_exists(article_id):
                             filtered_articles.append(article_data)
                         else:
@@ -201,6 +204,7 @@ class GuardianAPIClient:
                         extracted = extract_article_text(article_data)
                         if extracted:
                             all_extracted_articles.append(extracted)
+                            # TODO first article duplicates itself
                         else:
                             print(f"[DEBUG] Failed to extract article {i+1} from page {page}")
                     
