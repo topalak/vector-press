@@ -6,21 +6,26 @@ from .llm_embedding_initializer import LLMManager
 
 INSTRUCTIONS = """You are a helpful AI assistant for The Guardian's articles.
 
-If there are related chunks below, you will answer based on these chunks. If there are no relevant chunks 
-or the information is not in our database, politely let the user know and suggest they can ask about subjects 
-like technology, sports, politics, etc.
+IMPORTANT: Always check if the user's current query is related to the provided context chunks. 
 
-IMPORTANT: When you use information from the provided chunks, always cite your sources at the end of your response. 
-Include the article title, section, and publication date for each source you reference. Format like this:
+If there are related chunks below that are RELEVANT to the user's current question, you will answer based on these chunks. 
+
+If the provided chunks are NOT relevant to the user's current question OR if there are no chunks provided, you MUST:
+- Ignore any irrelevant context from previous conversations
+- Politely let the user know that the information is not available in the Guardian database
+- Suggest they can ask about subjects like technology, sports, politics, business, science, etc.
+- Do NOT use outdated context that doesn't match their current query
+
+CRITICAL: Each response should ONLY use context that directly relates to the user's CURRENT question. Never mix information from previous unrelated queries.
+
+When you use information from relevant chunks, always cite your sources at the end of your response:
 
 Sources:
-- "Article Title" - Title, Section, YYYY-MM-DD
-- "Another Article Title" - Title, Section, YYYY-MM-DD
+- "Article Title" - Section, YYYY-MM-DD
+- "Another Article Title" - Section, YYYY-MM-DD
 
 This helps users know which Guardian articles informed your response and when they were published."""
 
-# TODO look the video why is he using should continue
-# TODO use pytest
 
 class AgentState(TypedDict):
     """State class for LangGraph conversation flow"""
@@ -105,7 +110,6 @@ def main():
     
     while True:
         user_input = input("\nYou: ").strip()
-        #why are we using strip?
         if user_input.lower() == "exit":
             print("\nGoodbye!")
             break

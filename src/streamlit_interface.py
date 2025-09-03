@@ -57,8 +57,8 @@ def main():
             st.markdown(user_input)
         
         # Process with RAG
-        with st.chat_message("assistant"):
-            with st.spinner("Searching and generating response..."):
+        with st.chat_message("assistant", avatar="🤖"):
+            with st.spinner("Big Brother Bertan is thinking..."):
                 # Update state with user query
                 st.session_state.state["query"] = user_input
                 
@@ -71,11 +71,11 @@ def main():
                 # Update session state
                 st.session_state.state = result_state
                 
-                # Display response
-                st.markdown(ai_response)
+                # Display response with agent name
+                st.markdown(f"**Big Brother Bertan:** {ai_response}")
         
-        # Add assistant response to chat display
-        st.session_state.chat_messages.append({"role": "assistant", "content": ai_response})
+        # Add assistant response to chat display with agent name
+        st.session_state.chat_messages.append({"role": "assistant", "content": f"**Big Brother Bertan:** {ai_response}"})
     
     # Sidebar
     with st.sidebar:

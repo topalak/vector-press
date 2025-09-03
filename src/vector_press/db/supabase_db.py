@@ -157,10 +157,14 @@ class SupabaseVectorStore:
                 for item in result.data:
                     if item['similarity'] >= similarity_threshold:
                         try:
+                            print(f"🔄 [DEBUG] Incrementing search count for article: {item['article_id']}")
                             # Increment the counter in search_metadata
-                            self.supabase.rpc('increment_search_count', {'target_article_id': item['article_id']}).execute()
+                            increment_result = self.supabase.rpc('increment_search_count', {'target_article_id': item['article_id']}).execute()
+                            print(f"✅ [DEBUG] Search count increment result: {increment_result}")
                         except Exception as e:
                             print(f"⚠️ [DEBUG] Failed to update search counter for article {item['article_id']}: {e}")
+                            import traceback
+                            traceback.print_exc()
                 
                 print(f"🔍 [DEBUG] Retrieved {len(result.data)} total chunks, {len(filtered_chunks)} above threshold {similarity_threshold}")
                 
