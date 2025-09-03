@@ -9,26 +9,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(
 from src.config import settings
 
 # Use clean package imports
-try:
-    from ..llm_embedding_initializer import LLMManager
-    from . import GuardianAPIClient
-except ImportError:
-    # Fallback for direct execution (debug mode)
-    import sys
-    import os
-    # Add the parent directories to path
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    parent_dir = os.path.dirname(current_dir)  # vector_press
-    grandparent_dir = os.path.dirname(parent_dir)  # src
-    sys.path.insert(0, parent_dir)
-    sys.path.insert(0, grandparent_dir)
-    
-    from llm_embedding_initializer import LLMManager
-    # Since we're in the db directory, import from the same directory
-    sys.path.insert(0, current_dir)
-    from guardian_api import GuardianAPIClient
-# TODO remove fallback option it is for only debug mode
-
+from ..llm_embedding_initializer import LLMManager
+from . import GuardianAPIClient
 
 class SupabaseVectorStore:
     """Handles Supabase database operations for vector storage and retrieval"""
@@ -127,7 +109,7 @@ class SupabaseVectorStore:
             print(f"🔥 [DEBUG] Error checking article existence: {e}")
             return False
 
-    def retrieve_relevant_chunks(self, query: str, match_count: int = 10, section_filter: str = None, similarity_threshold: float = 0.7) -> list[str]:
+    def retrieve_relevant_chunks(self, query: str, match_count: int = 10, section_filter: str = None, similarity_threshold: float = 0.6) -> list[dict]:
         """
         Retrieve relevant chunks from Supabase using semantic search
         
@@ -138,7 +120,8 @@ class SupabaseVectorStore:
             similarity_threshold: Minimum similarity score to include chunk (0.0 to 1.0)
             
         Returns:
-            List of relevant chunk contents above the similarity threshold
+            List of dictionaries containing chunk content and metadata above the similarity threshold
+            Each dict has: {'content': str, 'title': str, 'section': str, 'publication_date': str, 'similarity': float}
         """
 
         try:
@@ -158,11 +141,17 @@ class SupabaseVectorStore:
             result = self.supabase.rpc('match_article_chunks', params).execute()
             
             if result.data:
-                # Filter chunks by similarity threshold
-                filtered_chunks = [
-                    item['content'] for item in result.data 
-                    if item['similarity'] >= similarity_threshold
-                ]
+                # Filter chunks by similarity threshold and include metadata
+                filtered_chunks = []
+                for item in result.data:
+                    if item['similarity'] >= similarity_threshold:
+                        filtered_chunks.append({
+                            'content': item['content'],
+                            'title': item['title'],
+                            'section': item['section'],
+                            'publication_date': item['publication_date'],
+                            'similarity': item['similarity']
+                        })
                 
                 # Track retrieved articles - increment search_metadata counter
                 for item in result.data:
@@ -217,9 +206,8 @@ class SupabaseVectorStore:
                 return False
 
             # Split content into chunks
-            # TODO after fetching articles analyze and get mean of word and char counts and set better chunk size and chunk overlap
-            chunk_size = 1000
-            chunk_overlap = 200
+            chunk_size = 1750
+            chunk_overlap = 275
             chunks = [content[i:i + chunk_size] for i in range(0, len(content), chunk_size - chunk_overlap)]
             print(f"🔧 [DEBUG] Split content into {len(chunks)} chunks")
 
@@ -302,7 +290,6 @@ class SupabaseVectorStore:
             'start_time': datetime.now(),
             'end_time': None
         }
-        # TODO check is there any necessary stats part
 
         try:
             # Fetch articles from Guardian API
@@ -377,7 +364,7 @@ def main():
         stats = supabase_store.database_uploading(query="artificial intelligence",
                                                   page_size=200,
                                                   order_by="relevance",
-                                                  max_pages=3)
+                                                  max_pages=10)
 
         if stats:
             print(f"\n✅ Database population completed successfully!")

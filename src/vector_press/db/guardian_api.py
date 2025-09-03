@@ -5,9 +5,10 @@ import time
 import sys
 import os
 
-# TODO add data validation to methods
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from src.config import settings
+
+# TODO add data validation to methods and functions
 
 def extract_article_text(article_data: Dict) -> Dict | None:
     """
@@ -30,8 +31,6 @@ def extract_article_text(article_data: Dict) -> Dict | None:
     try:
         # Basic article info
         article_id = article_data.get("id", "")
-        word_count = article_data.get("word_count", 0)  #there would be an error for adding 0
-        char_count = article_data.get("char_count", 0)
         title = article_data.get("webTitle", "")
         url = article_data.get("webUrl", "")
         publication_date = article_data.get("webPublicationDate", "")
@@ -43,9 +42,10 @@ def extract_article_text(article_data: Dict) -> Dict | None:
 
         # Extract fields if available
         fields = article_data.get("fields", {})
-        print(f"🔍 [DEBUG] Available fields: {list(fields.keys())}")
 
-        # Get different text content
+        # Get different text content - convert strings to integers
+        word_count = int(fields.get("wordcount", "0") or 0)
+        char_count = int(fields.get("charCount", "0") or 0)
         standfirst = fields.get("standfirst", "")  # Summary/subtitle
         body_text = fields.get("bodyText", "")
         trail_text = fields.get("trailText", "")  # Preview text
@@ -185,18 +185,17 @@ class GuardianAPIClient:
                     filtered_articles = []
                     for article_data in articles_data:
                         article_id = article_data.get("id", "")
-                        # TODO maybe we can save time like controlling a similar track instead of controlling the whole part of the article_id
-                        # TODO remove check_Article_exist method at the first time storing
                         if not self.supabase_store.check_article_exists(article_id):
                             filtered_articles.append(article_data)
                         else:
                             print(f"⚠️ [DEBUG] Article {article_id} already exists, skipping...")
-                    #we are keeping both variable which they are contains exactly same values we can remove one of them after the updating part
-                    #updating articles data
+                    
                     articles_data = filtered_articles
                     if not articles_data:
                         print(f"[DEBUG] All articles on page {page} already exist. Skipping to next page.")
                         continue
+                    
+                    print(f"[DEBUG] Processing {len(articles_data)} new articles from page {page} (after duplicate check)")
 
                     # Process each article using the extraction function
                     for i, article_data in enumerate(articles_data):
@@ -204,12 +203,9 @@ class GuardianAPIClient:
                         extracted = extract_article_text(article_data)
                         if extracted:
                             all_extracted_articles.append(extracted)
-                            # TODO first article duplicates itself
                         else:
                             print(f"[DEBUG] Failed to extract article {i+1} from page {page}")
-                    
-                    print(f"✅ [DEBUG] Page {page} completed: {len(articles_data)} articles processed")
-                    
+
                 else:
                     print(f"❌ [DEBUG] Page {page} failed with status {response.status_code}: {response.text}")
                     if page == 1:  # If first page fails, return None
@@ -226,7 +222,6 @@ class GuardianAPIClient:
             print(f"📊 [DEBUG] Total time: {total_time:.2f} seconds")
             
             return all_extracted_articles if all_extracted_articles else None
-            # TODO check here again
 
         except requests.exceptions.RequestException as e:
             print(f"🔥 [DEBUG] Request exception occurred: {e}")

@@ -10,7 +10,14 @@ If there are related chunks below, you will answer based on these chunks. If the
 or the information is not in our database, politely let the user know and suggest they can ask about subjects 
 like technology, sports, politics, etc.
 
-Please respond helpfully based on the available information."""
+IMPORTANT: When you use information from the provided chunks, always cite your sources at the end of your response. 
+Include the article title, section, and publication date for each source you reference. Format like this:
+
+Sources:
+- "Article Title" - Title, Section, YYYY-MM-DD
+- "Another Article Title" - Title, Section, YYYY-MM-DD
+
+This helps users know which Guardian articles informed your response and when they were published."""
 
 # TODO look the video why is he using should continue
 # TODO use pytest
@@ -40,11 +47,23 @@ class RAGProcessor:
             match_count=10, 
             similarity_threshold=0.7
         )
-        #######################################################################################################################################
-        # TODO when we are retrieving related chunks we have to retrieve some mete_data also like related chunks news heading, publication time,
 
-        context_text = "\n\n".join(retrieved_chunks) if retrieved_chunks else ""
-        enhanced_user_input = f"{user_input}\n\nContext:\n{context_text}" if context_text else user_input
+        # Format chunks with metadata for enhanced context
+        if retrieved_chunks:
+            context_parts = []
+            for i, chunk in enumerate(retrieved_chunks):
+                # Format: [Section | Date | "Title"] \n Content
+                pub_date = chunk['publication_date'][:10] if chunk['publication_date'] else 'Unknown date'  # YYYY-MM-DD
+                header = f"[{chunk['section']} | {pub_date} | \"{chunk['title']}\"]"
+                context_parts.append(f"{header}\n{chunk['content']}")
+            
+            context_text = "\n\n".join(context_parts)
+            enhanced_user_input = f"{user_input}\n\nContext:\n{context_text}"
+        else:
+            enhanced_user_input = user_input
+        
+        # Store retrieved chunks for terminal display (used in main())
+        self.last_retrieved_chunks = retrieved_chunks if retrieved_chunks else []
         
         state['messages'].append(HumanMessage(content=enhanced_user_input))
 
@@ -96,6 +115,18 @@ def main():
 
         # Process through the graph
         state = app.invoke(state)
+        
+        # Display retrieved chunks in terminal
+        if hasattr(rag_processor, 'last_retrieved_chunks') and rag_processor.last_retrieved_chunks:
+            print(f"\n📚 Retrieved {len(rag_processor.last_retrieved_chunks)} relevant chunks:")
+            print("=" * 50)
+            for i, chunk in enumerate(rag_processor.last_retrieved_chunks, 1):
+                pub_date = chunk['publication_date'][:10] if chunk['publication_date'] else 'Unknown date'
+                header = f"[{chunk['section']} | {pub_date} | \"{chunk['title']}\"]"
+                print(f"\n{i}. {header}")
+                print(f"   Similarity: {chunk['similarity']:.3f}")
+                print(f"   Content: {chunk['content'][:200]}..." if len(chunk['content']) > 200 else f"   Content: {chunk['content']}")
+            print("=" * 50)
 
 if __name__ == "__main__":
     main()

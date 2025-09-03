@@ -7,10 +7,8 @@ from tqdm import tqdm
 import sys
 import os
 
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from src.config import settings
-
-# TODO neleri eklemeliyim
 
 def check_and_pull_ollama_model(model_name: str, ollama_url: str) -> None:
     """Check if model exists, pull if not."""
