@@ -1,28 +1,31 @@
-# 📁 Project Structure
+# Vector-Press 🚀
+
+**Latest News RAG System** - An intelligent news retrieval and chat system powered by The Guardian API, vector embeddings, and conversational AI.
+
+## 📁 Project Structure
 
 ```
 vector-press/
 ├── src/
-│   ├── config.py                    # Configuration management
-│   ├── main.py                      # Main application entry point
+│   ├── config.py                         # Environment configuration management
+│   ├── main.py                          # Terminal application entry point
+│   ├── streamlit_interface.py           # Web UI interface (Streamlit)
 │   └── vector_press/
-│       ├── __init__.py
-│       ├── llm_embedding_initializer.py  # LLM & embedding management
-│       ├── rag_processor.py              # RAG orchestration
-│       ├── graph_nodes.py               # LangGraph conversation nodes
+│       ├── __init__.py                  # Package initialization
+│       ├── llm_embedding_initializer.py # Ollama LLM & embedding setup
+│       ├── rag_processor.py             # RAG orchestration & LangGraph flow
 │       └── db/
-│           ├── __init__.py
-│           ├── supabase_db.py           # Vector database operations
-│           ├── guardian_api.py          # The Guardian API client
-│           ├── inserting_supabase.py    # Article processing pipeline
-│           └── database_uploading.py    # Database population script
-├── test/                            # Test files
-├── out/                            # Build artifacts (ignored)
-├── .env                           # Environment variables (ignored)
-├── .gitignore                     # Git ignore rules
-├── pyproject.toml                 # Project dependencies
-├── CLAUDE.md                      # Development guidelines
-└── README.md                      # This file
+│           ├── __init__.py              # Database package init
+│           ├── supabase_db.py           # Vector database operations & search
+│           ├── guardian_api.py          # The Guardian API client & extraction
+│           └── supabase_setup.sql       # Database schema & functions
+├── test/                                # Development test files (gitignored)
+├── out/                                 # Build artifacts (gitignored)
+├── .env                                 # Environment variables (gitignored)
+├── .gitignore                          # Git ignore configuration
+├── pyproject.toml                      # Project dependencies (uv)
+├── CLAUDE.md                           # Modular development guidelines
+└── README.md                           # Project documentation
 ```
 
 **Latest News RAG System** - An intelligent news retrieval and chat system powered by The Guardian API, vector embeddings, and conversational AI.
@@ -71,24 +74,36 @@ Vector-Press is a modular RAG system that fetches news articles from The Guardia
 
 ## 🚀 Usage
 
-### Start Chat Interface
+### Terminal Chat Interface
 ```bash
 uv run python src/main.py
 ```
 
-### Populate Database
+### Web UI (Streamlit)
 ```bash
-uv run python src/vector_press/db/database_uploading.py
+uv run streamlit run src/streamlit_interface.py
+```
+
+### Populate Database with Guardian Articles
+```bash
+uv run python src/vector_press/db/supabase_db.py
 ```
 
 ## 🏗️ Architecture
 
-- **GraphNodes**: LangGraph-based conversation flow
-- **RAGProcessor**: Orchestrates retrieval and response generation  
-- **LLMManager**: Handles Ollama model initialization
-- **SupabaseVectorStore**: Vector database operations
-- **GuardianAPIClient**: The Guardian API integration
-- **ArticleProcessor**: Article processing pipeline
+### Core Components
+- **RAGProcessor**: LangGraph-based conversation flow and retrieval orchestration
+- **LLMManager**: Ollama model initialization and management (Qwen + Nomic embeddings)
+- **SupabaseVectorStore**: Vector database operations, similarity search, and analytics
+- **GuardianAPIClient**: The Guardian API integration and article extraction
+- **Dual Interfaces**: Terminal CLI and Streamlit web UI
+
+### Key Features
+- **Smart Retrieval**: Database-first approach with API fallback
+- **Vector Search**: Cosine similarity search with configurable thresholds
+- **Source Citations**: Automatic article attribution with publication dates
+- **Search Analytics**: Tracks article retrieval frequency
+- **Modular Design**: Clean separation of concerns following CLAUDE.md guidelines
 
 ## 🛠️ Additional Commands
 
