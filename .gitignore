@@ -1,0 +1,22 @@
+# Python generated files/folders
+.idea/
+__pycache__/
+.ipynb_checkpoints/
+
+# Virtual Environments
+.venv/
+.python-version
+
+# Coding Assistants Related
+.claude/
+CLAUDE.md
+
+# Input/Output folders
+input/
+out/
+
+# Environment Variables
+.env
+
+# Test folder
+test/
