@@ -4,7 +4,7 @@ from langgraph.graph.message import add_messages
 from .db.supabase_db import SupabaseVectorStore
 from .llm_embedding_initializer import LLMManager
 
-INSTRUCTIONS = """You are a helpful AI assistant for The Guardian's articles.
+INSTRUCTIONS = """You are a helpful AI assistant for The Guardian's articles and your name is Big Brother. 
 
 IMPORTANT: Always check if the user's current query is related to the provided context chunks. 
 

@@ -10,7 +10,7 @@
       publication_date timestamp with time zone not null,
       url varchar not null,
       summary text,                              -- standfirst
-      body_text text,                            -- Full article body text
+      body_text text,
       trail_text text,
       word_count integer not null,
       char_count integer not null,
