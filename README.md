@@ -28,7 +28,7 @@ vector-press/
 └── README.md                           # Project documentation
 ```
 
-**Latest News RAG System** - An intelligent news retrieval and chat system powered by The Guardian API, vector embeddings, and conversational AI.
+**Latest News RAG System** - An intelligent news retrieval and chat system powered by The Guardian API and conversational AI.
 
 ## 🚀 Overview
 
@@ -55,7 +55,7 @@ Vector-Press is a modular RAG system that fetches news articles from The Guardia
 
 1. **Clone and install**
    ```bash
-   git clone <repository-url>
+   git clone <https://github.com/topalak/vector-press.git>
    cd vector-press
    uv sync
    ```
@@ -103,19 +103,4 @@ uv run python src/vector_press/db/supabase_db.py
 - **Vector Search**: Cosine similarity search with configurable thresholds
 - **Source Citations**: Automatic article attribution with publication dates
 - **Search Analytics**: Tracks article retrieval frequency
-- **Modular Design**: Clean separation of concerns following CLAUDE.md guidelines
-
-## 🛠️ Additional Commands
-
-```bash
-# Sync dependencies
-uv sync
-
-# Run main application
-uv run python src/main.py
-
-# Run tests
-uv run python test/test_embedding.py
-```
-
-Follow modular design principles outlined in `CLAUDE.md`.
+- **Modular Design**: Clean separation 
