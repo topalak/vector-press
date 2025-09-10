@@ -6,7 +6,7 @@ from src.vector_press.llm_embedding_initializer import LLMManager
 import datetime
 from config import settings
 # TODO bana kindly bir sekilde sor diyor aq
-# TODO retrive ederken muhtelemen butun chat memory i atiyor o yuzden 57014 timout veriyor
+# TODO bir sorun var ikinci query de relative chunk getirirken hata veriyor timeout ile alaklai
 # TODO hicbir related chunk getirmiyor print etmek lazim
 
 INSTRUCTIONS = """You are a helpful AI assistant for The Guardian's articles and your name is Big Brother. 
@@ -22,7 +22,7 @@ Sources:
 If the provided chunks are NOT relevant to the user's current question OR if there are no chunks provided, you MUST:
 - Ignore any irrelevant context from previous conversations
 - Politely inform the user: "We don't have related articles about your query in our database for now"
-- Kindly invite them to ask about news topics like technology, sports, politics, business, science, world events, etc.
+- Invite them to ask about news topics like technology, sports, politics, business, science, world events, etc.
 - Do NOT include any source citations or references
 - Do NOT use outdated context that doesn't match their current query
 
@@ -52,7 +52,7 @@ class RAGProcessor:
         retrieved_chunks = self.supabase_vector_store.retrieve_relevant_chunks(
             user_input, 
             match_count=10, 
-            similarity_threshold=0.5
+            similarity_threshold=0.3
         )
 
         # Format chunks with metadata for enhanced context
