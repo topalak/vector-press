@@ -109,7 +109,7 @@ class SupabaseVectorStore:
             print(f"🔥 [DEBUG] Error checking article existence: {e}")
             return False
 
-    def retrieve_relevant_chunks(self, query: str, match_count: int = 10, section_filter: str = None, similarity_threshold: float = 0.6) -> list[dict]:
+    def retrieve_relevant_chunks(self, query: str, match_count: int = 10, section_filter: str = None, similarity_threshold: float = 0.7) -> list[dict]:
         """
         Retrieve relevant chunks from Supabase using semantic search
         

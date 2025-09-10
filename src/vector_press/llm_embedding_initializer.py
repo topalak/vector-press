@@ -6,9 +6,7 @@ from tqdm import tqdm
 
 import sys
 import os
-
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-from src.config import settings
+from config import settings
 
 def check_and_pull_ollama_model(model_name: str, ollama_url: str) -> None:
     """Check if model exists, pull if not."""
@@ -71,7 +69,6 @@ class LLMManager:
                 num_ctx=8192,
                 reasoning=True,
             )
-            self.llm.invoke([HumanMessage(content="test")])
             print(f"✅ [DEBUG] Using Ollama (remote) with model: {self.llm.model}, context: {self.llm.num_ctx}")
         except Exception as e:
             print(f"Failed to initialize Ollama: {e}")
@@ -92,10 +89,8 @@ class LLMManager:
             )
             
             # Test the embedding model
-            test_embedding = self.embedding_model.embed_query("test")
             print(f"✅ [DEBUG] Nomic embedding initialized successfully")
-            print(f"✅ [DEBUG] Embedding dimension: {len(test_embedding)}")
-            
+
         except Exception as e:
             print(f"⚠️ [DEBUG] Failed to initialize embedding: {e}")
             print(f"💡 [DEBUG] Make sure Ollama is running and accessible")

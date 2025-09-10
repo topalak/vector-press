@@ -8,6 +8,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from src.vector_press import LLMManager, RAGProcessor, SupabaseVectorStore, AgentState
 
+from config import settings
 
 @st.cache_resource
 def initialize_components():
@@ -29,6 +30,8 @@ def initialize_components():
 
 
 def main():
+    os.environ['LANGSMITH_API_KEY'] = getattr(settings, 'LANGSMITH_API_KEY', '')
+    os.environ['LANGSMITH_TRACING'] = getattr(settings, 'LANGSMITH_TRACING', 'false')
     st.set_page_config(page_title="Vector Press RAG", page_icon="🔍", layout="wide")
 
     st.title("🔍 Vector Press RAG Chatbot")

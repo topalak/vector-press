@@ -1,8 +1,13 @@
 from langchain_core.messages import HumanMessage, AIMessage, BaseMessage, SystemMessage
 from typing import TypedDict, Annotated
 from langgraph.graph.message import add_messages
-from .db.supabase_db import SupabaseVectorStore
-from .llm_embedding_initializer import LLMManager
+from src.vector_press.db.supabase_db import SupabaseVectorStore
+from src.vector_press.llm_embedding_initializer import LLMManager
+import datetime
+from config import settings
+# TODO bana kindly bir sekilde sor diyor aq
+# TODO retrive ederken muhtelemen butun chat memory i atiyor o yuzden 57014 timout veriyor
+# TODO hicbir related chunk getirmiyor print etmek lazim
 
 INSTRUCTIONS = """You are a helpful AI assistant for The Guardian's articles and your name is Big Brother. 
 
@@ -47,7 +52,7 @@ class RAGProcessor:
         retrieved_chunks = self.supabase_vector_store.retrieve_relevant_chunks(
             user_input, 
             match_count=10, 
-            similarity_threshold=0.7
+            similarity_threshold=0.5
         )
 
         # Format chunks with metadata for enhanced context
@@ -62,6 +67,7 @@ class RAGProcessor:
             context_text = "\n\n".join(context_parts)
             enhanced_user_input = f"{user_input}\n\nContext:\n{context_text}"
         else:
+            print(f'ZARTTIRIZORT: {datetime.datetime.now().astimezone(tz=settings.TIME_ZONE)}')
             enhanced_user_input = user_input
         
         # Store retrieved chunks for terminal display (used in main())
@@ -90,6 +96,8 @@ def main():
         "messages": [],
         "query": ""
     }
+
+    #technology / 2025 / sep / 05 / tesla - elon - musk - trillion - dollar - pay - package
     
     llm_manager = LLMManager()
     supabase_vector_store = SupabaseVectorStore(llm_manager)
