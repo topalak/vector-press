@@ -78,16 +78,10 @@
   as $$
   begin
     update guardian_articles 
-    set search_metadata = to_jsonb(coalesce((search_metadata->>'count')::int, 0) + 1)
+    set search_metadata = to_jsonb(coalesce(search_metadata::text::int, 0) + 1)
     where article_id = target_article_id;
   end;
   $$;
-
-  -- CRITICAL: Create vector index for fast similarity search (prevents timeout errors)
-  -- Without this index, every query scans ALL embeddings → timeout (57014 error)
-  -- With this index, queries are 10-100x faster using HNSW algorithm
-  CREATE INDEX IF NOT EXISTS article_chunks_embedding_idx 
-  ON article_chunks USING ivfflat (embedding vector_cosine_ops);
 
   -- Enable RLS
   alter table guardian_articles enable row level security;
@@ -106,3 +100,20 @@
 
   create policy "Allow public insert on chunks"
     on article_chunks for insert to public with check (true);
+
+           -- More specific UPDATE policy for search_metadata
+  CREATE POLICY "Allow public update search_metadata on guardian_articles"
+    ON guardian_articles FOR UPDATE TO public
+    USING (true)
+    WITH CHECK (true);
+
+
+
+
+-- CRITICAL: Set timeout for authenticator role
+ALTER ROLE authenticator SET statement_timeout = '2min';
+
+-- Set timeouts for other roles
+ALTER ROLE anon SET statement_timeout = '2min';
+ALTER ROLE authenticated SET statement_timeout = '2min';
+ALTER ROLE service_role SET statement_timeout = '5min';
