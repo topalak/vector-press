@@ -5,9 +5,6 @@ from src.vector_press.db.supabase_db import SupabaseVectorStore
 from src.vector_press.llm_embedding_initializer import LLMManager
 import datetime
 from config import settings
-# TODO bana kindly bir sekilde sor diyor aq
-# TODO bir sorun var ikinci query de relative chunk getirirken hata veriyor timeout ile alaklai
-# TODO hicbir related chunk getirmiyor print etmek lazim
 
 INSTRUCTIONS = """You are a helpful AI assistant for The Guardian's articles and your name is Big Brother. 
 
@@ -52,7 +49,7 @@ class RAGProcessor:
         retrieved_chunks = self.supabase_vector_store.retrieve_relevant_chunks(
             user_input, 
             match_count=10, 
-            similarity_threshold=0.3
+            similarity_threshold=0.7
         )
 
         # Format chunks with metadata for enhanced context
@@ -83,7 +80,6 @@ class RAGProcessor:
             **state,
             'messages': [*state['messages'], AIMessage(content=response.content)],
             'query': user_input  # Use original user input
-            # TODO keep state['query']'s track to see how its storing user's queries
         }
 
 

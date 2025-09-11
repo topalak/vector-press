@@ -143,7 +143,7 @@ class SupabaseVectorStore:
             if result.data:
                 # Filter chunks by similarity threshold and include metadata
                 filtered_chunks = []
-                for item in result.data:
+                for item in result.data[:3]:
                     if item['similarity'] >= similarity_threshold:
                         filtered_chunks.append({
                             'content': item['content'],
