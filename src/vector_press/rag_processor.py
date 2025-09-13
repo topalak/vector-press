@@ -1,8 +1,8 @@
 from langchain_core.messages import HumanMessage, AIMessage, BaseMessage, SystemMessage
 from typing import TypedDict, Annotated
 from langgraph.graph.message import add_messages
-from src.vector_press.db.supabase_db import SupabaseVectorStore
-from src.vector_press.llm_embedding_initializer import LLMManager
+from vector_press.db.supabase_db import SupabaseVectorStore
+from vector_press.llm_embedding_initializer import LLMManager
 import datetime
 from config import settings
 

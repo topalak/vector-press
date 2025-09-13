@@ -6,7 +6,7 @@ from datetime import datetime
 
 # Add src to path for config access
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-from src.config import settings
+from config import settings
 
 # Use clean package imports
 from ..llm_embedding_initializer import LLMManager

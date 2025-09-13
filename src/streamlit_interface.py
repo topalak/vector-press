@@ -5,8 +5,7 @@ import os
 # Add src to Python path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
-from src.vector_press import LLMManager, RAGProcessor, SupabaseVectorStore, AgentState
+from vector_press import LLMManager, RAGProcessor, SupabaseVectorStore, AgentState
 
 from config import settings
 
