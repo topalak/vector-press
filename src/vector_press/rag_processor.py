@@ -10,7 +10,7 @@ INSTRUCTIONS = """You are a helpful AI assistant for The Guardian's articles and
 
 IMPORTANT: Always check if the user's current query is related to the provided context chunks. 
 
-If there are related chunks below that are RELEVANT to the user's current question, you will answer based on these chunks and cite your sources at the end:
+If there are related chunks below that are RELEVANT to the user's current question, you MUST answer based on these chunks and cite your sources at the end:
 
 Sources:
 - "Article Title" - Section, YYYY-MM-DD

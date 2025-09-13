@@ -1,4 +1,5 @@
 from langchain_ollama import ChatOllama, OllamaEmbeddings
+from langchain_groq import ChatGroq
 from langchain_core.messages import HumanMessage
 #from ai_common.llm import load_ollama_model
 from ollama import Client, ListResponse
@@ -58,19 +59,33 @@ class LLMManager:
     def _initialize_llm(self):
         """Initialize LLM with fallback logic"""
         try:
-            # Load Ollama model to memory first
-            load_ollama_model(model_name='qwen3:8b', ollama_url=settings.OLLAMA_HOST)
+            # Try Ollama first
+            load_ollama_model(model_name='llama3.2:3b', ollama_url=settings.OLLAMA_HOST)
             
             self.llm = ChatOllama(
-                model='qwen3:8b',
+                model='llama3.2:3b',
                 base_url=settings.OLLAMA_HOST,
                 temperature=0,
                 num_ctx=8192,
-                reasoning=True,
+                #reasoning=True,
             )
             print(f"✅ [DEBUG] Using Ollama (remote) with model: {self.llm.model}, context: {self.llm.num_ctx}")
         except Exception as e:
-            print(f"Failed to initialize Ollama: {e}")
+            print(f"⚠️ [DEBUG] Failed to initialize Ollama: {e}")
+            
+            try:
+                # Fallback to Groq
+                self.llm = ChatGroq(
+                    model="llama-3.1-8b-instant",
+                    api_key=settings.GROQ_API_KEY,
+                    temperature=0,
+                    max_tokens=8192,
+                )
+                print(f"✅ [DEBUG] Using Groq fallback with model: {self.llm.model}")
+            except Exception as groq_error:
+                print(f"❌ [DEBUG] Failed to initialize Groq fallback: {groq_error}")
+                print(f"💡 [DEBUG] Make sure GROQ_API_KEY is set in your environment")
+                self.llm = None
 
     def _initialize_embeddings(self):
         """Initialize embedding model using LangChain's OllamaEmbeddings"""
