@@ -72,7 +72,7 @@ class SupabaseVectorStore:
                 })
             
             # Insert chunks in batches
-            batch_size = 100
+            batch_size = 500
             for i in range(0, len(chunk_data), batch_size):
                 batch = chunk_data[i:i + batch_size]
                 result = self.supabase.table('article_chunks').insert(batch).execute()
@@ -109,7 +109,7 @@ class SupabaseVectorStore:
             print(f"🔥 [DEBUG] Error checking article existence: {e}")
             return False
 
-    def retrieve_relevant_chunks(self, query: str, match_count: int = 10, section_filter: str = None, similarity_threshold: float = 0.7) -> list[dict]:
+    def retrieve_relevant_chunks(self, query: str, match_count: int = 10, section_filter: str = None, similarity_threshold: float = 0.6) -> list[dict]:
         """
         Retrieve relevant chunks from Supabase using semantic search
         
@@ -143,7 +143,7 @@ class SupabaseVectorStore:
             if result.data:
                 # Filter chunks by similarity threshold and include metadata
                 filtered_chunks = []
-                for item in result.data[:3]:
+                for item in result.data:
                     if item['similarity'] >= similarity_threshold:
                         filtered_chunks.append({
                             'content': item['content'],
@@ -194,7 +194,7 @@ class SupabaseVectorStore:
             metadata = extracted_data['metadata']
             #metadata is _insert_guardian_article_metadata's input it's coming from extracted_data which it is in search_articles method
             content = extracted_data['content']
-            #same as metadata it is for splitting and they will convert chunks to set ready to embedding and inserting to the article chunks
+            #same as metadata it is for splitting, and they will convert chunks to set ready to embedding and inserting to the article chunks
 
             if not content:
                 print(f"❌ [DEBUG] No content to process")
@@ -365,6 +365,7 @@ def main():
                                                   page_size=200,
                                                   order_by="relevance",
                                                   max_pages=10)
+
 
         if stats:
             print(f"\n✅ Database population completed successfully!")

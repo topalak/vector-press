@@ -46,11 +46,7 @@ class RAGProcessor:
         """Process user query with RAG and return updated state"""
         user_input = state.get('query', '')
         
-        retrieved_chunks = self.supabase_vector_store.retrieve_relevant_chunks(
-            user_input, 
-            match_count=10, 
-            similarity_threshold=0.7
-        )
+        retrieved_chunks = self.supabase_vector_store.retrieve_relevant_chunks(user_input, match_count=3, similarity_threshold=0.6)
 
         # Format chunks with metadata for enhanced context
         if retrieved_chunks:
@@ -64,7 +60,7 @@ class RAGProcessor:
             context_text = "\n\n".join(context_parts)
             enhanced_user_input = f"{user_input}\n\nContext:\n{context_text}"
         else:
-            print(f'ZARTTIRIZORT: {datetime.datetime.now().astimezone(tz=settings.TIME_ZONE)}')
+            print(f"Couldn't retrieve any chunk: {datetime.datetime.now().astimezone(tz=settings.TIME_ZONE)}")
             enhanced_user_input = user_input
         
         # Store retrieved chunks for terminal display (used in main())
@@ -73,7 +69,7 @@ class RAGProcessor:
         state['messages'].append(HumanMessage(content=enhanced_user_input))
 
         response = self.llm.invoke(state['messages'])
-        print(f'\nBig Brother Bertan: {response.content}')
+        print(f"\nBig Brother: {response.content}")
 
         # Return updated state
         return {

@@ -2,11 +2,8 @@ import requests
 from datetime import datetime
 from typing import Dict
 import time
-import sys
-import os
 
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-from src.config import settings
+from config import settings
 
 
 def extract_article_text(article_data: Dict) -> Dict | None:
@@ -34,8 +31,6 @@ def extract_article_text(article_data: Dict) -> Dict | None:
         url = article_data.get("webUrl", "")
         publication_date = article_data.get("webPublicationDate", "")
         section_name = article_data.get("sectionName", "")
-
-        # TODO we arent using all results which sharing with us, maybe we can save time fetching exactly what i need
 
         print(f"🔍 [DEBUG] Article ID: {article_id}")
 
@@ -114,7 +109,7 @@ class GuardianAPIClient:
                         order_by: str = None,
                         max_pages: int = 20) -> list[Dict] | None:
         """
-        Search for articles using Guardian API and extract their content
+        Search for articles using The Guardian API and extract their content
         
         Args:
             query: Search query string (optional)

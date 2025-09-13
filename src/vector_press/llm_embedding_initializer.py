@@ -4,8 +4,7 @@ from langchain_core.messages import HumanMessage
 from ollama import Client, ListResponse
 from tqdm import tqdm
 
-import sys
-import os
+#TODO we can change the embedding model to version 1.5 but we need to update with embedding every article again.
 from config import settings
 
 def check_and_pull_ollama_model(model_name: str, ollama_url: str) -> None:
@@ -40,7 +39,7 @@ def load_ollama_model(model_name: str, ollama_url: str) -> None:
     try:
         ollama_client.embeddings(model=model_name, prompt="test")
     except:
-        ollama_client.generate(model=model_name)
+        ollama_client.generate(model=model_name, prompt="test")
 
 class LLMManager:
     """Manages LLM and embedding initialization with fallback logic"""
