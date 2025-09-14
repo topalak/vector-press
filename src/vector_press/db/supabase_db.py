@@ -123,7 +123,7 @@ class SupabaseVectorStore:
             List of dictionaries containing chunk content and metadata above the similarity threshold
             Each dict has: {'content': str, 'title': str, 'section': str, 'publication_date': str, 'similarity': float}
         """
-
+        # TODO we need to pass query with search_query: <query>
         try:
             # Generate embedding for the query
             query_embedding = self.embedding_model.embed_query(query)

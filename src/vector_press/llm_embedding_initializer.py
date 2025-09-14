@@ -5,7 +5,11 @@ from langchain_core.messages import HumanMessage
 from ollama import Client, ListResponse
 from tqdm import tqdm
 
-#TODO we can change the embedding model to version 1.5 but we need to update with embedding every article again.
+#TODO
+# 1- we can change the embedding model to version 1.5 but we need to update with embedding every article again.
+# 2- we missed a big spot, which model wants like below:
+# text = "search_document: Your actual document content here"
+# embeddings = ollama_client.embeddings(model="nomic-embed-text", PROMPT=text)
 from config import settings
 
 def check_and_pull_ollama_model(model_name: str, ollama_url: str) -> None:
