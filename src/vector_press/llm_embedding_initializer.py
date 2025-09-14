@@ -39,8 +39,13 @@ def load_ollama_model(model_name: str, ollama_url: str) -> None:
     # Try embedding first (for embedding models), fallback to generate (for LLMs)
     try:
         ollama_client.embeddings(model=model_name, prompt="test")
-    except:
-        ollama_client.generate(model=model_name, prompt="test")
+    except ValueError:
+        try:
+            ollama_client.generate(model=model_name, prompt="test")
+        except Exception as e:
+            print(f"❌ [ERROR] Failed to load model {model_name}: {e}")
+
+
 
 class LLMManager:
     """Manages LLM and embedding initialization with fallback logic"""

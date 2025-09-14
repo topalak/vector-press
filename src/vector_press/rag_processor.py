@@ -89,8 +89,6 @@ def main():
         "query": ""
     }
 
-    #technology / 2025 / sep / 05 / tesla - elon - musk - trillion - dollar - pay - package
-    
     llm_manager = LLMManager()
     supabase_vector_store = SupabaseVectorStore(llm_manager)
     rag_processor = RAGProcessor(llm_manager, supabase_vector_store, state)
