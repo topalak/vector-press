@@ -181,15 +181,15 @@ class GuardianAPIClient:
                     print(f"[DEBUG] Found {len(articles_data)} articles on page {page}")
 
                     # Check if articles already exist before processing
-                    filtered_articles = []
-                    for article_data in articles_data:
-                        article_id = article_data.get("id", "")
-                        if not self.supabase_store.check_article_exists(article_id):            #technology/2024/feb/27/apple-cancels-electric-car-layoffs
-                            filtered_articles.append(article_data)
-                        else:
-                            print(f"⚠️ [DEBUG] Article {article_id} already exists, skipping...")
-                    
-                    articles_data = filtered_articles
+                    #filtered_articles = []
+                    #for article_data in articles_data:
+                    #    article_id = article_data.get("id", "")
+                    #    if not self.supabase_store.check_article_exists(article_id):            #technology/2024/feb/27/apple-cancels-electric-car-layoffs
+                   #         filtered_articles.append(article_data)
+                    #    else:
+                    #        print(f"⚠️ [DEBUG] Article {article_id} already exists, skipping...")
+                    #
+                    #articles_data = filtered_articles
                     if not articles_data:
                         print(f"[DEBUG] All articles on page {page} already exist. Skipping to next page.")
                         continue

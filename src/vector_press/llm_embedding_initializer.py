@@ -100,19 +100,19 @@ class LLMManager:
         """Initialize embedding model using LangChain's OllamaEmbeddings"""
 
         try:
-            print(f"🔄 [DEBUG] Initializing Nomic embedding model...")
+            print(f"🔄 [DEBUG] Initializing EmbeddingGemma model...")
             
             # Load/pull the embedding model first
-            load_ollama_model(model_name='nomic-embed-text', ollama_url=settings.OLLAMA_HOST)
-            
+            load_ollama_model(model_name='embeddinggemma', ollama_url=settings.OLLAMA_HOST)
+
             # Use LangChain's built-in OllamaEmbeddings
             self.embedding_model = OllamaEmbeddings(
-                model="nomic-embed-text",
+                model="embeddinggemma",
                 base_url=settings.OLLAMA_HOST
             )
             
             # Test the embedding model
-            print(f"✅ [DEBUG] Nomic embedding initialized successfully")
+            print(f"✅ [DEBUG] EmbeddingGemma initialized successfully")
 
         except Exception as e:
             print(f"⚠️ [DEBUG] Failed to initialize embedding: {e}")
