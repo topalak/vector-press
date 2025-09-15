@@ -113,7 +113,7 @@ class SupabaseVectorStore:
 
     def _create_mega_batch_embeddings(self, chunks: List[str]) -> List[Dict]:
         """
-        Create embeddings using A100 optimized mega-batch processing with EmbeddingGemma formatting
+        Create embeddings optimized batch processing with EmbeddingGemma formatting
 
         Args:
             chunks: List of text chunks to embed
@@ -121,6 +121,11 @@ class SupabaseVectorStore:
         Returns:
             List of dictionaries with content and embeddings
         """
+
+        if torch.cuda.is_available():
+            total_memory = torch.cuda.get_device_properties(0).total_memory
+            print(f"Total GPU memory: {total_memory / 1024 ** 3:.1f} GB")   #  1024 ** 3 = 1024³ = 1,073,741,824 bytes = 1 GB
+
 
         total_chunks = len(chunks)
         print(f"🚀 [MEGA-BATCH] Processing {total_chunks:,} chunks with EmbeddingGemma A100 optimization")
@@ -146,7 +151,7 @@ class SupabaseVectorStore:
         try:
             # Process in mega-batches
             for i in range(0, total_chunks, batch_size):
-                batch = formatted_chunks[i:i + batch_size]
+                batch = formatted_chunks[i:i + batch_size]  # for ex. [0 : 8.000.000]
                 current_batch_size = len(batch)
                 batch_num = i // batch_size + 1
                 total_batches = (total_chunks - 1) // batch_size + 1
@@ -354,23 +359,10 @@ class SupabaseVectorStore:
                 print(f"⚠️ [DEBUG] No chunks created from content")
                 return True
 
-            # Create embeddings for chunks
-            if pre_computed_embeddings is not None:
-                # Cross-article mega-batch mode - use pre-computed embeddings
-                print(f"🚀 [CROSS-BATCH] Using pre-computed embeddings for {len(chunks)} chunks")
-                if len(pre_computed_embeddings) != len(chunks):
-                    print(f"❌ [CROSS-BATCH] Embedding count mismatch: expected {len(chunks)}, got {len(pre_computed_embeddings)}")
-                    return False
+            # Normal single-article mode - create embeddings
+            print(f"🚀 [SINGLE-BATCH] Creating embeddings for {len(chunks)} chunks using mega-batch processing...")
+            embedded_chunks = self._create_mega_batch_embeddings(chunks)
 
-                embedded_chunks = [
-                    {'content': chunk, 'embedding': emb}
-                    for chunk, emb in zip(chunks, pre_computed_embeddings)
-                ]
-            else:
-                # Normal single-article mode - create embeddings
-                print(f"🚀 [SINGLE-BATCH] Creating embeddings for {len(chunks)} chunks using mega-batch processing...")
-                embedded_chunks = self._create_mega_batch_embeddings(chunks)
-            
             print(f"✅ [DEBUG] Created {len(embedded_chunks)} embeddings")
             
             if not embedded_chunks:
