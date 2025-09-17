@@ -9,6 +9,8 @@ from config import settings
 from vector_press.llm_embedding_initializer import LLMManager
 from vector_press.db.guardian_api import GuardianAPIClient
 
+#TODO clear unnecessary debug print statements
+
 def _calculate_optimal_batch_size():
     """
     Calculate optimal batch size based on available GPU VRAM
