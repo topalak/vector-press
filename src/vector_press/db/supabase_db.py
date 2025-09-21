@@ -9,7 +9,7 @@ from config import settings
 from vector_press.llm_embedding_initializer import LLMManager
 from vector_press.db.guardian_api import GuardianAPIClient
 
-#TODO clear unnecessary debug print statements
+#TODO explore the pytest
 
 def _calculate_optimal_batch_size():
     """
@@ -39,7 +39,6 @@ def _calculate_optimal_batch_size():
 
         # Use 75% of VRAM for embeddings (reserve 25% for system/other processes)
         available_memory = total_memory * 0.75
-        available_gb = available_memory / (1024**3)
 
         # Memory per chunk: 4.832 KB = 4,832 bytes
         memory_per_chunk = 4_832
@@ -49,14 +48,7 @@ def _calculate_optimal_batch_size():
         #should we save it float instead of int 
         print(f"🔧 [VRAM] GPU: {torch.cuda.get_device_name(0)}")
         print(f"🔧 [VRAM] Total VRAM: {total_gb:.1f} GB")
-        print(f"🔧 [VRAM] Available (75%): {available_gb:.1f} GB")
-        print(f"🔧 [VRAM] Memory per chunk: {memory_per_chunk:,} bytes ({memory_per_chunk/1024:.1f} KB)")
         print(f"🔧 [VRAM] Optimal batch size: {optimal_batch_size:,} chunks")
-        print(f"🔧 [VRAM] Estimated peak usage: {(optimal_batch_size * memory_per_chunk / 1024**3):.1f} GB")
-
-        # Safety bounds: minimum 100, maximum reasonable limit
-        optimal_batch_size = max(100, min(optimal_batch_size, 10_000_000))
-        print(f"🔧 [VRAM] Final batch size (with bounds): {optimal_batch_size:,} chunks")
 
         return optimal_batch_size
 
