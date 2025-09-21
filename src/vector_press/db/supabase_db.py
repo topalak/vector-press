@@ -1,20 +1,65 @@
 from supabase import create_client, Client
-import sys
-import os
 from typing import List, Dict
 from datetime import datetime
+import time
+import torch
 
-# Add src to path for config access
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-from src.config import settings
+from config import settings
 
-# Use clean package imports
-from ..llm_embedding_initializer import LLMManager
-from . import GuardianAPIClient
+from vector_press.llm_embedding_initializer import LLMManager
+from vector_press.db.guardian_api import GuardianAPIClient
+
+#TODO explore the pytest
+
+def _calculate_optimal_batch_size():
+    """
+    Calculate optimal batch size based on available GPU VRAM
+
+    Formula:
+    - Pure embedding: 768 × 4 = 3,072 bytes (3.072 KB) per chunk
+    - Text tokenization memory: ~0.5-1 KB per chunk
+    - GPU computation buffers: ~0.5-1 KB per chunk
+    - Total: ~4.832 KB per chunk
+
+    Dynamic 75% VRAM formula:
+    - available_memory = total_memory * 0.75 (75% of VRAM)
+    - optimal_batch_size = int(available_memory / 4.832)
+
+    Returns:
+        Optimal batch size for current GPU configuration
+    """
+    if not torch.cuda.is_available():
+        print("⚠️ [VRAM] No CUDA available, using default batch size: 1,000")
+        return 1_000
+
+    try:
+        # Get GPU memory info
+        total_memory = torch.cuda.get_device_properties(0).total_memory  # bytes
+        total_gb = total_memory / (1024**3)
+
+        # Use 75% of VRAM for embeddings (reserve 25% for system/other processes)
+        available_memory = total_memory * 0.75
+
+        # Memory per chunk: 4.832 KB = 4,832 bytes
+        memory_per_chunk = 4_832
+
+        # Calculate optimal batch size
+        optimal_batch_size = int(available_memory / memory_per_chunk)
+        #should we save it float instead of int 
+        print(f"🔧 [VRAM] GPU: {torch.cuda.get_device_name(0)}")
+        print(f"🔧 [VRAM] Total VRAM: {total_gb:.1f} GB")
+        print(f"🔧 [VRAM] Optimal batch size: {optimal_batch_size:,} chunks")
+
+        return optimal_batch_size
+
+    except Exception as e:
+        print(f"⚠️ [VRAM] Error calculating optimal batch size: {e}")
+        print(f"⚠️ [VRAM] Falling back to default: 1,000,000")
+        return 1_000_000
 
 class SupabaseVectorStore:
     """Handles Supabase database operations for vector storage and retrieval"""
-    
+
     def __init__(self, llm_manager):
         """Initialize Supabase client, embedding model and Guardian API client"""
         self.SUPABASE_URL = settings.SUPABASE_URL
@@ -72,7 +117,7 @@ class SupabaseVectorStore:
                 })
             
             # Insert chunks in batches
-            batch_size = 100
+            batch_size = 500
             for i in range(0, len(chunk_data), batch_size):
                 batch = chunk_data[i:i + batch_size]
                 result = self.supabase.table('article_chunks').insert(batch).execute()
@@ -99,7 +144,6 @@ class SupabaseVectorStore:
             True if article exists, False otherwise
         """
         try:
-            import time
             start_time = time.time()
             result = self.supabase.table('guardian_articles').select('article_id').eq('article_id', 
                                                                                     article_id).execute()
@@ -108,6 +152,103 @@ class SupabaseVectorStore:
         except Exception as e:
             print(f"🔥 [DEBUG] Error checking article existence: {e}")
             return False
+
+    def _create_mega_batch_embeddings(self, chunks: List[str]) -> List[Dict]:
+        """
+        Create embeddings optimized batch processing with EmbeddingGemma formatting
+
+        Args:
+            chunks: List of text chunks to embed
+
+        Returns:
+            List of dictionaries with content and embeddings
+        """
+
+        total_chunks = len(chunks)
+        print(f"🚀 [MEGA-BATCH] Processing {total_chunks:,} chunks with EmbeddingGemma A100 optimization")
+
+        # Format chunks with EmbeddingGemma document prompt
+        formatted_chunks = [f"title: none | text: {chunk}" for chunk in chunks]
+        print(f"🚀 [MEGA-BATCH] Formatted {len(formatted_chunks)} chunks with EmbeddingGemma prompts")
+
+        all_embeddings = []
+        total_start_time = time.time()
+
+        # Calculate optimal batch size using dynamic VRAM formula
+        optimal_batch_size = _calculate_optimal_batch_size()
+
+        batch_size = min(total_chunks, optimal_batch_size)
+
+        print(f"🚀 [MEGA-BATCH] Selected batch size: {batch_size:,} chunks")
+        print(f"🚀 [MEGA-BATCH] Estimated memory usage: {(batch_size * 4_832 / 1024**3):.1f}GB")
+
+        try:
+            # Process in mega-batches
+            total_batches = 0  # for mute the w
+            for i in range(0, total_chunks, batch_size):
+                batch = formatted_chunks[i:i + batch_size]  # for ex. [0 : 8.000.000]
+                current_batch_size = len(batch)
+                batch_num = i // batch_size + 1
+                total_batches = (total_chunks - 1) // batch_size + 1
+
+                print(f"🔥 [MEGA-BATCH] Processing batch {batch_num}/{total_batches}")
+                print(f"🔥 [MEGA-BATCH] Batch size: {current_batch_size:,} chunks")
+
+                batch_start_time = time.time()
+
+                try:
+                    # Clear GPU cache before processing
+                    if torch.cuda.is_available():
+                        torch.cuda.empty_cache()
+                        initial_memory = torch.cuda.memory_allocated() / 1024**3
+                        print(f"🔥 [MEGA-BATCH] GPU memory before batch: {initial_memory:.1f}GB")
+
+                    # THE MEGA-BATCH EMBEDDING CALL - Single HTTP request for massive batch
+                    batch_embeddings = self.embedding_model.embed_documents(batch)
+
+                    batch_end_time = time.time()
+                    batch_duration = batch_end_time - batch_start_time
+
+                    if torch.cuda.is_available():
+                        peak_memory = torch.cuda.max_memory_allocated() / 1024**3
+                        final_memory = torch.cuda.memory_allocated() / 1024**3
+                        print(f"🔥 [MEGA-BATCH] Peak GPU memory: {peak_memory:.1f}GB")
+                        print(f"🔥 [MEGA-BATCH] Final GPU memory: {final_memory:.1f}GB")
+                        torch.cuda.reset_peak_memory_stats()
+
+                    print(f"✅ [MEGA-BATCH] Batch {batch_num} completed in {batch_duration:.1f}s")
+                    print(f"✅ [MEGA-BATCH] Throughput: {current_batch_size/batch_duration:.0f} chunks/second")
+                    print(f"✅ [MEGA-BATCH] HTTP requests: 1 (for {current_batch_size:,} chunks)")
+
+                    # Combine with original chunk content (without EmbeddingGemma formatting)
+                    original_chunks = chunks[i:i + batch_size]
+                    for chunk, embedding in zip(original_chunks, batch_embeddings):
+                        all_embeddings.append({
+                            'content': chunk,  # Store original content without prompt formatting
+                            'embedding': embedding
+                        })
+
+                except Exception as e:
+                    print(f"Could not process batch: {e}")
+                    raise e
+
+        except Exception as e:
+            print(f"❌ [MEGA-BATCH] Critical error: {e}")
+            raise e
+
+        total_end_time = time.time()
+        total_duration = total_end_time - total_start_time
+
+        # Final statistics
+        print(f"\n🎉 [MEGA-BATCH] PROCESSING COMPLETE!")
+        print(f"🎉 [MEGA-BATCH] Total chunks: {len(all_embeddings):,}")
+        print(f"🎉 [MEGA-BATCH] Total duration: {total_duration:.1f}s ({total_duration/60:.1f} minutes)")
+        print(f"🎉 [MEGA-BATCH] Average throughput: {len(all_embeddings)/total_duration:.0f} chunks/second")
+        if total_batches != 0:
+            print(f"🎉 [MEGA-BATCH] HTTP requests saved: ~{len(all_embeddings)-total_batches:,}")
+            print(f"🎉 [MEGA-BATCH] Estimated cost savings: {((len(all_embeddings)-total_batches)/len(all_embeddings)*100):.1f}%")
+
+        return all_embeddings
 
     def retrieve_relevant_chunks(self, query: str, match_count: int = 10, section_filter: str = None, similarity_threshold: float = 0.6) -> list[dict]:
         """
@@ -123,10 +264,10 @@ class SupabaseVectorStore:
             List of dictionaries containing chunk content and metadata above the similarity threshold
             Each dict has: {'content': str, 'title': str, 'section': str, 'publication_date': str, 'similarity': float}
         """
-
         try:
-            # Generate embedding for the query
-            query_embedding = self.embedding_model.embed_query(query)
+            # Generate embedding for the query with EmbeddingGemma format
+            formatted_query = f"task: search result | query: {query}"
+            query_embedding = self.embedding_model.embed_query(formatted_query)
             print(f"🔍 [DEBUG] Generated query embedding with {len(query_embedding)} dimensions")
             
             # Call the match_article_chunks function
@@ -180,7 +321,7 @@ class SupabaseVectorStore:
 
     def _process_extracted_article(self, extracted_data: Dict) -> bool:
         """
-        Process already extracted article: chunk, embed, and store
+        Process extracted article: chunk, embed, and store
 
         Args:
             extracted_data: Dictionary with 'metadata' and 'content' from extract_article_text()
@@ -188,19 +329,17 @@ class SupabaseVectorStore:
         Returns:
             True if successful, False otherwise
         """
-        print(f"\n📰 [DEBUG] Processing extracted article...")
-
         try:
             metadata = extracted_data['metadata']
-            #metadata is _insert_guardian_article_metadata's input it's coming from extracted_data which it is in search_articles method
             content = extracted_data['content']
-            #same as metadata it is for splitting and they will convert chunks to set ready to embedding and inserting to the article chunks
+
+            print(f"\n📰 [DEBUG] Processing article: {metadata.get('article_id', 'unknown')}")
 
             if not content:
                 print(f"❌ [DEBUG] No content to process")
                 return False
 
-            # Insert article metadata
+            # Insert article metadata first
             if not self._insert_guardian_article_metadata(metadata):
                 print(f"❌ [DEBUG] Failed to insert article metadata")
                 return False
@@ -216,30 +355,14 @@ class SupabaseVectorStore:
                 return True
 
             # Create embeddings for chunks
-            print(f"🔄 [DEBUG] Creating embeddings for {len(chunks)} chunks...")
-            embedded_chunks = []
-            
-            for i, chunk in enumerate(chunks):
-                try:
-                    # Generate embedding
-                    embedding = self.embedding_model.embed_query(chunk)
-                    embedded_chunks.append({
-                        'content': chunk,
-                        'embedding': embedding
-                    })
-                    
-                    if (i + 1) % 10 == 0:
-                        print(f"🔄 [DEBUG] Processed {i + 1}/{len(chunks)} chunks")
-                        
-                except Exception as e:
-                    print(f"🔥 [DEBUG] Error creating embedding for chunk {i}: {e}")
-                    continue
-            
-            print(f"✅ [DEBUG] Created {len(embedded_chunks)} embeddings")
-            
+            print(f"🚀 [DEBUG] Creating embeddings for {len(chunks)} chunks...")
+            embedded_chunks = self._create_mega_batch_embeddings(chunks)
+
             if not embedded_chunks:
                 print(f"❌ [DEBUG] Failed to create embeddings")
                 return False
+
+            print(f"✅ [DEBUG] Created {len(embedded_chunks)} embeddings")
 
             # Insert chunks into database
             if not self._insert_article_chunks(metadata['article_id'], embedded_chunks):
@@ -307,25 +430,26 @@ class SupabaseVectorStore:
                 return stats
 
             stats['total_fetched'] = len(extracted_articles)
-
             print(f"📡 [DEBUG] Fetched {len(extracted_articles)} articles from API")
 
-            # Process each extracted article (already extracted in guardian_api.py)
+            # Process each article individually
+            print(f"\n🚀 [DEBUG] Processing {len(extracted_articles)} articles...")
+
             for i, extracted_article in enumerate(extracted_articles):
-                print(f"\n📰 [DEBUG] Processing article {i + 1}/{len(extracted_articles)}")
                 try:
                     stats['total_processed'] += 1
+                    print(f"\n📰 [DEBUG] Processing article {i+1}/{len(extracted_articles)}")
 
                     if self._process_extracted_article(extracted_article):
                         stats['successful'] += 1
-                        print(f"✅ [DEBUG] Article {i + 1} processed successfully")
+                        print(f"✅ [DEBUG] Article {i+1} processed successfully")
                     else:
                         stats['failed'] += 1
-                        print(f"❌ [DEBUG] Article {i + 1} processing failed")
+                        print(f"❌ [DEBUG] Article {i+1} processing failed")
 
                 except Exception as e:
                     stats['failed'] += 1
-                    print(f"🔥 [DEBUG] Error processing article {i + 1}: {e}")
+                    print(f"🔥 [DEBUG] Error processing article {i+1}: {e}")
 
             stats['end_time'] = datetime.now()
             duration = stats['end_time'] - stats['start_time']
@@ -337,9 +461,6 @@ class SupabaseVectorStore:
             print(f"📊 [DEBUG] Failed: {stats['failed']}")
             print(f"📊 [DEBUG] Skipped: {stats['skipped']}")
             print(f"📊 [DEBUG] Duration: {duration.total_seconds():.2f} seconds")
-
-            # Print database statistics
-            print(f"📊 [DEBUG] Processing completed successfully")
 
             return stats
 
@@ -360,11 +481,11 @@ def main():
     try:
         print("🚀 Populating database with Guardian articles...")
 
-        # Fetch and process articles
         stats = supabase_store.database_uploading(query="artificial intelligence",
                                                   page_size=200,
                                                   order_by="relevance",
-                                                  max_pages=10)
+                                                  max_pages=5)
+
 
         if stats:
             print(f"\n✅ Database population completed successfully!")

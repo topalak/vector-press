@@ -3,25 +3,24 @@
 
   -- Table 1: Guardian Articles Metadata
   create table guardian_articles (
-      id bigserial primary key,                  -- Auto-incrementing primary key
+      id serial primary key,                  -- Auto-incrementing primary key
       article_id varchar not null unique,       -- Custom article identifier (e.g., technology/2025/aug/05/google-step-artificial-general-intelligence-deepmind-agi)
       title varchar not null,
       section varchar not null,
       publication_date timestamp with time zone not null,
       url varchar not null,
       summary text,                              -- standfirst
-      body_text text,                            -- Full article body text
+      body_text text,
       trail_text text,
       word_count integer not null,
       char_count integer not null,
       fetch_time timestamp with time zone not null, -- When article was fetched from API
-      search_metadata jsonb default '{}'::jsonb, -- Track which queries found this
+      search_count integer default 0 not null,   -- Track how many times article was searched
       created_at timestamp with time zone default timezone('utc'::text, now()) not null
   );
-
   -- Table 2: Article Chunks with Embeddings
   create table article_chunks (
-      id bigserial primary key,                  -- Auto-incrementing primary key
+      id serial primary key,                  -- Auto-incrementing primary key
       article_id varchar not null references guardian_articles(article_id) on delete cascade,  -- Custom article identifier (e.g., technology/2025/aug/05/google-step-artificial-general-intelligence-deepmind-agi)
       chunk_number integer not null,
       content text not null,                     -- Chunk of full_text
@@ -36,7 +35,7 @@
   -- or just create function
   create or replace function match_article_chunks (
     query_embedding vector(768),
-    match_count int default 10,
+    match_count int default 3,
     section_filter varchar default null
   ) returns table (
     chunk_id bigint,
@@ -72,15 +71,15 @@
   $$;
 
   -- Function to increment search count
-  create or replace function increment_search_count(target_article_id varchar)
-  returns void
-  language plpgsql
-  as $$
-  begin
-    update guardian_articles 
-    set search_metadata = to_jsonb(coalesce((search_metadata->>'count')::int, 0) + 1)
-    where article_id = target_article_id;
-  end;
+  CREATE OR REPLACE FUNCTION increment_search_count(target_article_id varchar)
+  RETURNS void
+  LANGUAGE plpgsql
+  AS $$
+  BEGIN
+      UPDATE guardian_articles
+      SET search_count = search_count + 1
+      WHERE article_id = target_article_id;
+  END;
   $$;
 
   -- Enable RLS
@@ -100,3 +99,20 @@
 
   create policy "Allow public insert on chunks"
     on article_chunks for insert to public with check (true);
+
+  -- UPDATE policy for search_count
+  CREATE POLICY "Allow public update search_count on guardian_articles"
+    ON guardian_articles FOR UPDATE TO public
+    USING (true)
+    WITH CHECK (true);
+
+
+
+
+-- CRITICAL: Set timeout for authenticator role
+ALTER ROLE authenticator SET statement_timeout = '2min';
+
+-- Set timeouts for other roles
+ALTER ROLE anon SET statement_timeout = '2min';
+ALTER ROLE authenticated SET statement_timeout = '2min';
+ALTER ROLE service_role SET statement_timeout = '5min';

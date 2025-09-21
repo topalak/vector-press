@@ -1,14 +1,16 @@
 from langchain_ollama import ChatOllama, OllamaEmbeddings
+from langchain_groq import ChatGroq
 from langchain_core.messages import HumanMessage
 #from ai_common.llm import load_ollama_model
 from ollama import Client, ListResponse
 from tqdm import tqdm
 
-import sys
-import os
-
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-from src.config import settings
+#TODO
+# 1- we can change the embedding model to version 1.5 but we need to update with embedding every article again.
+# 2- we missed a big spot, which model wants like below:
+# text = "search_document: Your actual document content here"
+# embeddings = ollama_client.embeddings(model="nomic-embed-text", PROMPT=text)
+from config import settings
 
 def check_and_pull_ollama_model(model_name: str, ollama_url: str) -> None:
     """Check if model exists, pull if not."""
@@ -41,8 +43,13 @@ def load_ollama_model(model_name: str, ollama_url: str) -> None:
     # Try embedding first (for embedding models), fallback to generate (for LLMs)
     try:
         ollama_client.embeddings(model=model_name, prompt="test")
-    except:
-        ollama_client.generate(model=model_name)
+    except ValueError:
+        try:
+            ollama_client.generate(model=model_name, prompt="test")
+        except Exception as e:
+            print(f"❌ [ERROR] Failed to load model {model_name}: {e}")
+
+
 
 class LLMManager:
     """Manages LLM and embedding initialization with fallback logic"""
@@ -61,41 +68,52 @@ class LLMManager:
     def _initialize_llm(self):
         """Initialize LLM with fallback logic"""
         try:
-            # Load Ollama model to memory first
-            load_ollama_model(model_name='qwen3:8b', ollama_url=settings.OLLAMA_HOST)
+            # Try Ollama first
+            load_ollama_model(model_name='llama3.2:3b', ollama_url=settings.OLLAMA_HOST)
             
             self.llm = ChatOllama(
-                model='qwen3:8b',
+                model='llama3.2:3b',
                 base_url=settings.OLLAMA_HOST,
                 temperature=0,
                 num_ctx=8192,
-                reasoning=True,
+                #reasoning=True,
             )
-            self.llm.invoke([HumanMessage(content="test")])
             print(f"✅ [DEBUG] Using Ollama (remote) with model: {self.llm.model}, context: {self.llm.num_ctx}")
         except Exception as e:
-            print(f"Failed to initialize Ollama: {e}")
+            print(f"⚠️ [DEBUG] Failed to initialize Ollama: {e}")
+            
+            try:
+                # Fallback to Groq
+                self.llm = ChatGroq(
+                    model="llama-3.1-8b-instant",
+                    api_key=settings.GROQ_API_KEY,
+                    temperature=0,
+                    max_tokens=8192,
+                )
+                print(f"✅ [DEBUG] Using Groq fallback with model: {self.llm.model}")
+            except Exception as groq_error:
+                print(f"❌ [DEBUG] Failed to initialize Groq fallback: {groq_error}")
+                print(f"💡 [DEBUG] Make sure GROQ_API_KEY is set in your environment")
+                self.llm = None
 
     def _initialize_embeddings(self):
         """Initialize embedding model using LangChain's OllamaEmbeddings"""
 
         try:
-            print(f"🔄 [DEBUG] Initializing Nomic embedding model...")
+            print(f"🔄 [DEBUG] Initializing EmbeddingGemma model...")
             
             # Load/pull the embedding model first
-            load_ollama_model(model_name='nomic-embed-text', ollama_url=settings.OLLAMA_HOST)
-            
+            load_ollama_model(model_name='embeddinggemma', ollama_url=settings.OLLAMA_HOST)
+
             # Use LangChain's built-in OllamaEmbeddings
             self.embedding_model = OllamaEmbeddings(
-                model="nomic-embed-text",
+                model="embeddinggemma",
                 base_url=settings.OLLAMA_HOST
             )
             
             # Test the embedding model
-            test_embedding = self.embedding_model.embed_query("test")
-            print(f"✅ [DEBUG] Nomic embedding initialized successfully")
-            print(f"✅ [DEBUG] Embedding dimension: {len(test_embedding)}")
-            
+            print(f"✅ [DEBUG] EmbeddingGemma initialized successfully")
+
         except Exception as e:
             print(f"⚠️ [DEBUG] Failed to initialize embedding: {e}")
             print(f"💡 [DEBUG] Make sure Ollama is running and accessible")

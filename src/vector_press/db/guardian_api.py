@@ -2,13 +2,9 @@ import requests
 from datetime import datetime
 from typing import Dict
 import time
-import sys
-import os
 
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-from src.config import settings
+from config import settings
 
-# TODO add data validation to methods and functions
 
 def extract_article_text(article_data: Dict) -> Dict | None:
     """
@@ -35,8 +31,6 @@ def extract_article_text(article_data: Dict) -> Dict | None:
         url = article_data.get("webUrl", "")
         publication_date = article_data.get("webPublicationDate", "")
         section_name = article_data.get("sectionName", "")
-
-        # TODO we arent using all results which sharing with us, maybe we can save time fetching exactly what i need
 
         print(f"🔍 [DEBUG] Article ID: {article_id}")
 
@@ -115,7 +109,7 @@ class GuardianAPIClient:
                         order_by: str = None,
                         max_pages: int = 20) -> list[Dict] | None:
         """
-        Search for articles using Guardian API and extract their content
+        Search for articles using The Guardian API and extract their content
         
         Args:
             query: Search query string (optional)
@@ -136,18 +130,24 @@ class GuardianAPIClient:
 
         # Build base parameters
         base_params = {
-            "api-key": self.api_key,
-            "section": section,
-            "page-size": page_size,
-            "show-fields": show_fields
+            "api-key": self.api_key
         }
 
         # Add optional parameters
         if query:
             base_params["q"] = query
 
+        if section:
+            base_params["section"] = section
+
         if from_date:
             base_params["from-date"] = from_date
+
+        if page_size:
+            base_params["page-size"] = page_size
+
+        if show_fields:
+            base_params["show-fields"] = show_fields
 
         if order_by:
             base_params["order-by"] = order_by
@@ -174,7 +174,6 @@ class GuardianAPIClient:
                     api_data = response.json()
                     #to see raw response
                     articles_data = api_data.get('response', {}).get('results', [])
-                    #articles_data = response.json().get('response', {}).get('results', [])
                     
                     if not articles_data:
                         print(f"[DEBUG] No articles found on page {page}. Stopping pagination.")
@@ -182,15 +181,15 @@ class GuardianAPIClient:
                     print(f"[DEBUG] Found {len(articles_data)} articles on page {page}")
 
                     # Check if articles already exist before processing
-                    filtered_articles = []
-                    for article_data in articles_data:
-                        article_id = article_data.get("id", "")
-                        if not self.supabase_store.check_article_exists(article_id):
-                            filtered_articles.append(article_data)
-                        else:
-                            print(f"⚠️ [DEBUG] Article {article_id} already exists, skipping...")
-                    
-                    articles_data = filtered_articles
+                    #filtered_articles = []
+                    #for article_data in articles_data:
+                    #    article_id = article_data.get("id", "")
+                    #    if not self.supabase_store.check_article_exists(article_id):            #technology/2024/feb/27/apple-cancels-electric-car-layoffs
+                   #         filtered_articles.append(article_data)
+                    #    else:
+                    #        print(f"⚠️ [DEBUG] Article {article_id} already exists, skipping...")
+                    #
+                    #articles_data = filtered_articles
                     if not articles_data:
                         print(f"[DEBUG] All articles on page {page} already exist. Skipping to next page.")
                         continue

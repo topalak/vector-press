@@ -8,7 +8,6 @@ __pycache__/
 .python-version
 
 # Coding Assistants Related
-.claude/
 CLAUDE.md
 
 # Input/Output folders
