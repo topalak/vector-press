@@ -6,8 +6,7 @@ from vector_press.db.supabase_db import SupabaseVectorStore
 from vector_press.llm_embedding_initializer import LLMManager
 from config import settings
 from tavily import TavilyClient
-
-#print(f"Couldn't retrieve any chunk: {datetime.datetime.now().astimezone(tz=settings.TIME_ZONE)}")
+import datetime
 
 INSTRUCTIONS = """You are a smart and helpful news assistant. Your name is Big Brother.
 
@@ -42,12 +41,11 @@ class VectorPressAgent:
         """Initialize with LLM manager, Supabase vector store, and add INSTRUCTIONS to state"""
         self.embedding_model = None
         self.llm = llm_manager.get_llm()  # Get LLM from manager
-        self.supabase_vector_store = supabase_vector_store  # SupabaseVectorStore instance
+        self.supabase_vector_store = supabase_vector_store
         self.last_retrieved_chunks = []
         self.tavily_client = TavilyClient(api_key=settings.TAVILY_API_KEY)
         tools = [self.tavily_web_search]
         self.structured_llm = self.llm.bind_tools(tools=tools)
-
         state['messages'].append(SystemMessage(content=INSTRUCTIONS))
 
     def llm_call(self, state: AgentState) -> AgentState:
@@ -87,7 +85,9 @@ class VectorPressAgent:
 
         return state
 
-    def tavily_web_search(self, query: str, max_results: int = 5) -> str:
+    # TODO write a query generator like re-writing topic, query, time_range etc.
+
+    def tavily_web_search(self, query: str) -> str:
         """
         Search the web using Tavily API for current information.
 
@@ -102,8 +102,6 @@ class VectorPressAgent:
         try:
             response = self.tavily_client.search(
                 query=query,
-                max_results=2,
-                include_domains=["theguardian.com", "bbc.com", "cnn.com", "reuters.com"]
             )
 
             # Extract all content values
@@ -111,7 +109,9 @@ class VectorPressAgent:
             return contents
 
         except Exception as e:
+            print(f"Couldn't retrieve any chunk: {datetime.datetime.now().astimezone(tz=settings.TIME_ZONE)}")
             return f"Web search failed: {str(e)}"
+
 
 def should_continue(state: AgentState):
     """Determine whether to continue with tool calls or end"""

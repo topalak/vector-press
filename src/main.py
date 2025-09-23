@@ -6,6 +6,6 @@ if __name__ == "__main__":
 
 
 
-#TODO tool messages
-# create a tool.py file and re-design the folder's structure
+#TODO
 # for now I need to convert database uploading method to a tool
+# re-write query, type a generator
