@@ -24,5 +24,6 @@ class GuardianSearchRequest(BaseModel):
     page_size: int = Field(default=5, ge=1, le=200, description="Articles per page. Use 3 for quick/single result")
     max_pages: int = Field(default=1, ge=1, le=20, description="Maximum pages to fetch. Use 1 for quick results")
     order_by: Optional[str] = Field(default="relevance", description="Sort order: 'relevance', 'newest', 'oldest'")
+    show_fields: Optional[str] = Field(default="all", description="Fields to include in response")
 
 
