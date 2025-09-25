@@ -75,7 +75,7 @@ class LLMManager:
 
             self._llm = ChatOllama(
                 model='llama3.2:3b',
-                #model='qwen3:latest',
+                #model='qwen3:8b',
                 base_url=settings.OLLAMA_HOST,
                 temperature=0,
                 num_ctx=8192,

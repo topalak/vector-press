@@ -40,26 +40,26 @@ def extract_article_text(article_data: Dict) -> Dict | None:
         fields = article_data.get("fields", {})
 
         # Get different text content - convert strings to integers
-        word_count = int(fields.get("wordcount", "0") or 0)
-        char_count = int(fields.get("charCount", "0") or 0)
-        standfirst = fields.get("standfirst", "")  # Summary/subtitle
+        #word_count = int(fields.get("wordcount", "0") or 0)
+        #char_count = int(fields.get("charCount", "0") or 0)
+        #standfirst = fields.get("standfirst", "")  # Summary/subtitle
         body_text = fields.get("bodyText", "")
-        trail_text = fields.get("trailText", "")  # Preview text
+        #trail_text = fields.get("trailText", "")  # Preview text
 
-        print(f"🔍 [DEBUG] Standfirst length: {len(standfirst)} chars")
+        #print(f"🔍 [DEBUG] Standfirst length: {len(standfirst)} chars")
         print(f"🔍 [DEBUG] Body text length: {len(body_text)} chars")
-        print(f"🔍 [DEBUG] Trail text length: {len(trail_text)} chars")
+        #print(f"🔍 [DEBUG] Trail text length: {len(trail_text)} chars")
 
         # Combine all text content
         full_text_parts = []
         if title:
             full_text_parts.append(title)
-        if standfirst:
-            full_text_parts.append(standfirst)
+       # if standfirst:
+        #    full_text_parts.append(standfirst)
         if body_text:
             full_text_parts.append(body_text)
-        elif trail_text:  # Fallback if no body text
-            full_text_parts.append(trail_text)
+        #elif trail_text:  # Fallback if no body text
+        #    full_text_parts.append(trail_text)
 
         full_text = "\n\n".join(full_text_parts)
 
@@ -74,22 +74,22 @@ def extract_article_text(article_data: Dict) -> Dict | None:
             "section": section_name,
             "publication_date": publication_date,
             "url": url,
-            "summary": standfirst,
+            #"summary": standfirst,
             "body_text": body_text,
-            "trail_text": trail_text,
-            "word_count": word_count,
-            "char_count": char_count,
+           # "trail_text": trail_text,
+           # "word_count": word_count,
+           # "char_count": char_count,
             "fetch_time": datetime.now().isoformat()
         }
 
         print(f"✅ [DEBUG] Article extraction completed!")
-        print(f"✅ [DEBUG] Final word count: {meta_data['word_count']} words")
+        #print(f"✅ [DEBUG] Final word count: {meta_data['word_count']} words")
         print(f"⏱️ [DEBUG] extract_article_text took {time.time() - start_time:.4f} seconds")
 
-        return {
-            'metadata': meta_data,
-            'content': full_text
-        }
+        return full_text
+            #'metadata': meta_data
+
+
 
     except Exception as e:
         print(f"🔥 [DEBUG] Error extracting article text: {e}")
@@ -116,11 +116,11 @@ class GuardianAPIClient(BaseAPIClient):
     def search_articles(self,
                         query: str = None,
                         section: str = None,
-                        page_size: int = 200,
+                        page_size: int = 2,
                         from_date : str = None,
                         show_fields: str = "all",
                         order_by: str = None,
-                        max_pages: int = 20) -> list[Dict] | None:
+                        max_pages: int = 2) -> list[Dict] | None:
 
         print(f"\n📡 [DEBUG] Starting API search for {max_pages} page(s)...")
 
@@ -134,7 +134,7 @@ class GuardianAPIClient(BaseAPIClient):
 
         # Add optional parameters
         if query:
-            base_params["q"] = query
+            base_params["q"] = query  #here is very important guardian expects query as 'q' we set it as 'q' here.
 
         if section:
             base_params["section"] = section

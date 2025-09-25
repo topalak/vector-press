@@ -10,7 +10,7 @@ from vector_press.llm_embedding_initializer import LLMManager
 from config import settings
 from tavily import TavilyClient
 
-
+# TODO get hints from system instruction leakages
 INSTRUCTIONS = """You are a smart and helpful news assistant. Your name is Big Brother.
 
 Your job is to use tools to perform user's commands and find information to answer user's questions about news and current events.
@@ -41,13 +41,12 @@ class VectorPressAgent:
 
     def __init__(self, llm_manager: LLMManager, state: AgentState):
         """Initialize with LLM manager, Supabase vector store, and add INSTRUCTIONS to state"""
-        self.embedding_model = None  #we can set it in llm_embedding_initializer
         self.llm = llm_manager.get_llm()  # Get LLM from manager
         self.tavily_client = TavilyClient(api_key=settings.TAVILY_API_KEY)
+        self.guardian_client = GuardianAPIClient()
         tools = [self.tavily_web_search, self.search_guardian_articles]
         self.structured_llm = self.llm.bind_tools(tools=tools)
         state['messages'].append(SystemMessage(content=INSTRUCTIONS))
-        self.guardian_client = GuardianAPIClient()
 
 
     def llm_call(self, state: AgentState) -> AgentState:
