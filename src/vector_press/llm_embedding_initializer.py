@@ -71,10 +71,11 @@ class LLMManager:
         """Initialize LLM with fallback logic"""
         try:
             # Try Ollama first
-            load_ollama_model(model_name='qwen3:8b', ollama_url=settings.OLLAMA_HOST)
+            load_ollama_model(model_name='llama3.2:3b', ollama_url=settings.OLLAMA_HOST)
 
             self._llm = ChatOllama(
-                model='qwen3:8b',
+                #model='qwen3:8b',
+                model='llama3.2:3b',
                 base_url=settings.OLLAMA_HOST,
                 temperature=0,
                 num_ctx=8192,
