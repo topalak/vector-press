@@ -43,16 +43,18 @@ def load_ollama_model(model_name: str, ollama_url: str) -> None:
     # Try embedding first (for embedding models), fallback to generate (for LLMs)
     try:
         ollama_client.embeddings(model=model_name, prompt="test")
-    except ValueError:
+        print(f"✅ [DEBUG] {model_name} loaded successfully (embedding model)")
+    except Exception:   #Exception part is very important it catches every error, it was set as ValueError before and it wasn't able to fetch status code 500 error.
         try:
             ollama_client.generate(model=model_name, prompt="test")
+            print(f"✅ [DEBUG] {model_name} loaded successfully (text generation model)")
         except Exception as e:
             print(f"❌ [ERROR] Failed to load model {model_name}: {e}")
 
 
 
 class LLMManager:
-    """Manages LLM and embedding initialization with lazy loading"""
+    """Manages LLM and embedding initialization"""
 
     # Embedding model option
     use_lightweight_embedding = False  # Set to True for low-resource systems
@@ -63,7 +65,7 @@ class LLMManager:
         self._llm_initialized = False
         self._embedding_initialized = False
 
-        print(f"🔧 [DEBUG] LLM Manager initialized (lazy mode)")
+        print(f"🔧 [DEBUG] LLM Manager initialized")
 
     def _initialize_llm(self):
         """Initialize LLM with fallback logic"""
@@ -73,6 +75,7 @@ class LLMManager:
 
             self._llm = ChatOllama(
                 model='llama3.2:3b',
+                #model='qwen3:latest',
                 base_url=settings.OLLAMA_HOST,
                 temperature=0,
                 num_ctx=8192,
@@ -95,6 +98,9 @@ class LLMManager:
                 print(f"❌ [DEBUG] Failed to initialize Groq fallback: {groq_error}")
                 print(f"💡 [DEBUG] Make sure GROQ_API_KEY is set in your environment")
                 self._llm = None
+
+            raise
+
 
     def _initialize_embeddings(self):
         """Initialize embedding model using LangChain's OllamaEmbeddings"""
@@ -122,7 +128,7 @@ class LLMManager:
     def get_llm(self):
         """Get the LLM, initializing it if needed"""
         if not self._llm_initialized:
-            print(f"🔄 [DEBUG] Lazy loading LLM...")
+            print(f"🔄 [DEBUG] loading LLM...")
             self._initialize_llm()
             self._llm_initialized = True
         return self._llm
@@ -130,7 +136,7 @@ class LLMManager:
     def get_embedding_model(self):
         """Get the embedding model, initializing it if needed"""
         if not self._embedding_initialized:
-            print(f"🔄 [DEBUG] Lazy loading embedding model...")
+            print(f"🔄 [DEBUG] loading embedding model...")
             self._initialize_embeddings()
             self._embedding_initialized = True
         return self._embedding_model

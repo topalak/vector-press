@@ -17,14 +17,15 @@ Your job is to use tools to perform user's commands and find information to answ
 You can use any of the tools provided to you.
 You can call these tools in series or in parallel, your functionality is conducted in a tool-calling loop.
 
-You have access to the following main tool(s):
-1. **tavily_web_search**: To search the web for current news and information using Tavily API.
+You have access to the following tools:
+1. **search_guardian_articles**: For NEWS-related searches - use this for current news, breaking news, politics, world events, etc.
+2. **tavily_web_search**: For general web searches - use this for non-news topics like technology guides, finance information, etc.
 
-If the provided chunks are NOT relevant to the user's current question OR if there are no chunks provided, you MUST:
-- Use the tavily_web_search tool to find current information
-- Politely inform the user: "We don't have related articles about your query in our database, let me search for current information"
-- Search for news topics like technology, sports, politics, business, science, world events, etc.
-- Provide information from web search results with proper source attribution
+Tool Selection Guidelines:
+- For NEWS topics (politics, war, breaking news, current events): Use search_guardian_articles
+- For GENERAL topics (how-to guides, technical info, finance): Use tavily_web_search
+
+If no relevant information is available, search for current information using the appropriate tool based on the topic type.
 
 CRITICAL: Each response should ONLY use context that directly relates to the user's CURRENT question. Never mix information from previous unrelated queries. When database context is not relevant, always use web search to provide current information.
 </News Database Context>
@@ -62,28 +63,30 @@ class VectorPressAgent:
 
     def tools_call(self, state: AgentState) -> AgentState:
         """Execute tool calls and add results as ToolMessages"""
-        # Map tool names to methods
-        tool_map = {
-            "tavily_web_search": self.tavily_web_search,
-            "search_guardian_articles": self.search_guardian_articles,
-        }
-
         for tool_call in state['messages'][-1].tool_calls:
             tool_name = tool_call["name"]
-            if tool_name in tool_map:
-                # Get the tool function
-                tool_func = tool_map[tool_name]
+            args = tool_call.get("args", {})
 
-                # Extract and execute with arguments
-                args = tool_call.get("args", {})
-                tool_result = tool_func(**args)  # Pass all args dynamically
+            if tool_name == "search_guardian_articles":
+                # Extract nested validation data if present
+                validation_args = args.get('validation', args)
+                validation = GuardianSearchRequest(**validation_args)
+                tool_result = self.search_guardian_articles(validation)
 
-                # Add tool response
-                state['messages'].append(ToolMessage(
-                    content=tool_result,
-                    name=tool_name,
-                    tool_call_id=tool_call["id"]
-                ))
+            elif tool_name == "tavily_web_search":
+                # Extract nested validation data if present
+                validation_args = args.get('validation', args)
+                validation = TavilySearchRequest(**validation_args)
+                tool_result = self.tavily_web_search(validation)
+            else:
+                continue
+
+            # Add tool response
+            state['messages'].append(ToolMessage(
+                content=tool_result,
+                name=tool_name,
+                tool_call_id=tool_call["id"]
+            ))
 
         return state
 
@@ -93,8 +96,7 @@ class VectorPressAgent:
             response = self.tavily_client.search(
                 query=validation.query,
                 max_results= validation.max_results,
-                include_domains= validation.include_domains,
-                exclude_domains= validation.exclude_domains,
+                topic= validation.topic,
             )
 
             # Extract all content values

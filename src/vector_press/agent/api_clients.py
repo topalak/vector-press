@@ -117,6 +117,7 @@ class GuardianAPIClient(BaseAPIClient):
                         query: str = None,
                         section: str = None,
                         page_size: int = 200,
+                        from_date : str = None,
                         show_fields: str = "all",
                         order_by: str = None,
                         max_pages: int = 20) -> list[Dict] | None:
@@ -149,6 +150,9 @@ class GuardianAPIClient(BaseAPIClient):
 
         if order_by:
             base_params["order-by"] = order_by
+
+        if max_pages:
+            base_params["max-pages"] = max_pages
 
         # Collect articles from all pages
         all_extracted_articles = []
