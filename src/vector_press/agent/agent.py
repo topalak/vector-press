@@ -40,8 +40,6 @@ You can call these tools in series or in parallel, your functionality is conduct
     </example>
 </tool_guideline>
 
-If no relevant information is available, search for current information using the appropriate tool based on the topic type.
-
 <pay_attention>
 Each response should ONLY use context that directly relates to the user's CURRENT question. Never mix information 
 from previous unrelated queries unless user wants it.
