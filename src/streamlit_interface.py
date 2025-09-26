@@ -5,16 +5,17 @@ import os
 # Add src to Python path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from vector_press import LLMManager, RAGProcessor, SupabaseVectorStore, AgentState
+from vector_press import LLMManager
+from vector_press.agent import VectorPressAgent, AgentState, should_continue
+from langgraph.graph import StateGraph, START, END
 
 from config import settings
 
 @st.cache_resource
 def initialize_components():
-    """Initialize components with caching"""
-    # Initialize all components
+    """Initialize agent components with caching"""
+    # Initialize LLM manager
     llm_manager = LLMManager()
-    supabase_vector_store = SupabaseVectorStore(llm_manager)
 
     # Create initial state
     initial_state: AgentState = {
@@ -22,10 +23,25 @@ def initialize_components():
         "query": ""
     }
 
-    # Initialize RAG Processor with state
-    rag_processor = RAGProcessor(llm_manager, supabase_vector_store, initial_state)
+    # Initialize agent
+    vectorpress_agent = VectorPressAgent(llm_manager, initial_state)
 
-    return rag_processor, initial_state
+    # Create and compile LangGraph
+    graph = StateGraph(AgentState)
+    graph.add_node('llm_call', vectorpress_agent.llm_call)
+    graph.add_node('tools_call', vectorpress_agent.tools_call)
+
+    graph.add_edge(start_key=START, end_key='llm_call')
+    graph.add_conditional_edges(
+        source='llm_call',
+        path=should_continue,
+        path_map={'continue': 'tools_call', 'end': END}
+    )
+    graph.add_edge('tools_call', 'llm_call')
+
+    agent_app = graph.compile()
+
+    return agent_app, initial_state
 
 
 def main():
@@ -37,7 +53,7 @@ def main():
     st.markdown("Ask questions about Guardian articles!")
 
     # Initialize components
-    rag_processor, initial_state = initialize_components()
+    agent_app, initial_state = initialize_components()
 
     # Initialize session state
     if "state" not in st.session_state:
@@ -58,14 +74,14 @@ def main():
         with st.chat_message("user"):
             st.markdown(user_input)
 
-        # Process with RAG
+        # Process with Agent
         with st.chat_message("assistant", avatar="🤖"):
             with st.spinner("Big Brother is thinking..."):
                 # Update state with user query
                 st.session_state.state["query"] = user_input
 
-                # Process through RAG
-                result_state = rag_processor.process_query(st.session_state.state)
+                # Process through agent
+                result_state = agent_app.invoke(st.session_state.state)
 
                 # Get AI response from the result
                 ai_response = result_state["messages"][-1].content
@@ -84,11 +100,12 @@ def main():
     with st.sidebar:
         st.header("ℹ️ About")
         st.markdown("""
-        **Vector Press RAG System**
+        **Vector Press Agent System**
 
-        Ask questions about Guardian articles and get AI-powered responses based on:
-        - 🔍 Semantic search through article database
-        - 🧠 AI-generated responses using retrieved context
+        Ask questions about news and current events and get AI-powered responses using:
+        - 🔍 Guardian API for news searches
+        - 🌐 Tavily web search for general topics
+        - 🧠 AI agent with tool calling capabilities
         - 💬 Conversation memory
         """)
 

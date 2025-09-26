@@ -7,7 +7,7 @@ import torch
 from config import settings
 
 from vector_press.llm_embedding_initializer import LLMManager
-from vector_press.db.guardian_api import GuardianAPIClient
+from vector_press.agent.api_clients import GuardianAPIClient
 
 #TODO explore the pytest
 
