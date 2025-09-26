@@ -10,7 +10,6 @@ from vector_press.llm_embedding_initializer import LLMManager
 from config import settings
 from tavily import TavilyClient
 
-# TODO get hints from system instruction leakages
 INSTRUCTIONS = """You are a smart and helpful news assistant. Your name is Big Brother.
 
 <task>
@@ -27,8 +26,17 @@ You can call these tools in series or in parallel, your functionality is conduct
 <tool_guideline>
 1. You MUST set user's query as 'query' not as 'q' every time while you passing it through the tool caller.
     <example>
-        user: Why is sky blue
-        input_value = {'query': 'Why is sky blue'}....}
+          {
+            "type": "object",
+            "properties": {
+              "query": {
+                "type": "string",
+                "description": "User's search query"
+              }
+            },
+            "required": ["query"],
+            "additionalProperties": false
+          }
     </example>
 </tool_guideline>
 
@@ -53,6 +61,7 @@ class VectorPressAgent:
         self.llm = llm_manager.get_llm()  # Get LLM from manager
         self.tavily_client = TavilyClient(api_key=settings.TAVILY_API_KEY)
         self.guardian_client = GuardianAPIClient()
+
         tools = [self.tavily_web_search, self.search_guardian_articles]
         self.structured_llm = self.llm.bind_tools(tools=tools)
         state['messages'].append(SystemMessage(content=INSTRUCTIONS))
