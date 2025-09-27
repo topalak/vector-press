@@ -13,9 +13,9 @@ from tavily import TavilyClient
 INSTRUCTIONS = """You are a smart and helpful news assistant. Your name is Big Brother.
 
 <task>
-Your job is to use tools to perform user's commands and find information to answer user's questions about news and current events.
-You can use any of the tools provided to you.
-You can call these tools in series or in parallel, your functionality is conducted in a tool-calling loop.
+1- Your job is to use tools to perform user's commands and find information to answer user's questions about news and current events. You can use any of the tools provided to you.
+2- You can call these tools in series or in parallel, your functionality is conducted in a tool-calling loop.
+3- If you decide to not any tool to call, just answer depending your knowledge. 
 </task>
 
 <available_tools>
@@ -72,7 +72,7 @@ class VectorPressAgent:
         if not state['messages'] or not isinstance(state['messages'][-1], ToolMessage):   #IF (messages list is empty) OR (last message is NOT a ToolMessage)
             state['messages'].append(HumanMessage(content=user_input))
 
-        response = self.structured_llm.invoke(state['messages'])  #state AIMessage
+        response = self.structured_llm.invoke(state['messages'])
         state['messages'].append(response)
         return state
 
@@ -83,15 +83,11 @@ class VectorPressAgent:
             args = tool_call.get("args", {})
 
             if tool_name == "search_guardian_articles":
-                # Extract nested validation data if present
-                validation_args = args.get('validation', args)
-                validation = GuardianSearchRequest(**validation_args)
+                validation = GuardianSearchRequest(**args)
                 tool_result = self.search_guardian_articles(validation)
 
             elif tool_name == "tavily_web_search":
-                # Extract nested validation data if present
-                validation_args = args.get('validation', args)
-                validation = TavilySearchRequest(**validation_args)
+                validation = TavilySearchRequest(**args)
                 tool_result = self.tavily_web_search(validation)
             else:
                 continue

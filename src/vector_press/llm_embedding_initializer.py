@@ -83,7 +83,7 @@ class LLMManager:
             )
             print(f"✅ [DEBUG] Using Ollama (remote) with model: {self._llm.model}, context: {self._llm.num_ctx}")
         except Exception as e:
-            print(f"⚠️ [DEBUG] Failed to initialize Ollama: {e}")
+            print(f"⚠️ [DEBUG] Failed to initialize Ollama")
 
             try:
                 # Fallback to Groq
@@ -121,7 +121,7 @@ class LLMManager:
             print(f"✅ [DEBUG] EmbeddingGemma initialized successfully")
 
         except Exception as e:
-            print(f"⚠️ [DEBUG] Failed to initialize embedding: {e}")
+            print(f"⚠️ [DEBUG] Failed to initialize embedding:")
             print(f"💡 [DEBUG] Make sure Ollama is running and accessible")
             self._embedding_model = None
 

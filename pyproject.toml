@@ -17,3 +17,4 @@ dependencies = [
     "supabase>=2.18.1",
     "torch>=2.8.0",
 ]
+#you are getting every lib's version from ai-common, you need to discuss it with bbb
