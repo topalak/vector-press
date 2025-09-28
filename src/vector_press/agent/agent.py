@@ -48,8 +48,10 @@ from previous unrelated queries unless user wants it.
 
 class AgentState(TypedDict):
     """State class for LangGraph conversation flow"""
-    messages: Annotated[list[BaseMessage], add_messages]  # keeps every type of message with BaseMessage
+    context_window: Annotated[list[BaseMessage], add_messages]  # keeps every type of message with BaseMessage
     query: str
+    tool_messages: str
+    #TODO we can use it for write context text engineering
 
 class VectorPressAgent:
     """Handles Agent's processing and response generation"""
@@ -62,23 +64,23 @@ class VectorPressAgent:
 
         tools = [self.tavily_web_search, self.search_guardian_articles]
         self.structured_llm = self.llm.bind_tools(tools=tools)
-        state['messages'].append(SystemMessage(content=INSTRUCTIONS))
+        state['context_window'].append(SystemMessage(content=INSTRUCTIONS))
 
 
     def llm_call(self, state: AgentState) -> AgentState:
         """LLM call that handles both initial user input and continuation after tools"""
         user_input = state.get('query', '')
 
-        if not state['messages'] or not isinstance(state['messages'][-1], ToolMessage):   #IF (messages list is empty) OR (last message is NOT a ToolMessage)
-            state['messages'].append(HumanMessage(content=user_input))
+        if not state['context_window'] or not isinstance(state['context_window'][-1], ToolMessage):   #IF (messages list is empty) OR (last message is NOT a ToolMessage)
+            state['context_window'].append(HumanMessage(content=user_input))
 
-        response = self.structured_llm.invoke(state['messages'])  #state AIMessage
-        state['messages'].append(response)
+        response = self.structured_llm.invoke(state['context_window'])  #state AIMessage
+        state['context_window'].append(response)
         return state
 
     def tools_call(self, state: AgentState) -> AgentState:
         """Execute tool calls and add results as ToolMessages"""
-        for tool_call in state['messages'][-1].tool_calls:
+        for tool_call in state['context_window'][-1].tool_calls:
             tool_name = tool_call["name"]
             args = tool_call.get("args", {})
 
@@ -97,7 +99,7 @@ class VectorPressAgent:
                 continue
 
             # Add tool response
-            state['messages'].append(ToolMessage(
+            state['context_window'].append(ToolMessage(
                 content=tool_result,
                 name=tool_name,
                 tool_call_id=tool_call["id"]
@@ -134,7 +136,7 @@ class VectorPressAgent:
 
 def should_continue(state: AgentState):
     """Determine whether to continue with tool calls or end"""
-    last_message = state['messages'][-1]
+    last_message = state['context_window'][-1]
     if last_message.tool_calls:
         return 'continue'
     else:
@@ -144,7 +146,7 @@ def main():
 
     print("\nStarting (type 'exit' to quit)...")
     state: AgentState = {
-        "messages": [],
+        "context_window": [],
         "query": ""
     }
 
@@ -173,8 +175,8 @@ def main():
 
         state = app.invoke(state)
 
-        if state['messages']:
-            print(f"\nBig Brother: {state['messages'][-1].content}")
+        if state['context_window']:
+            print(f"\nBig Brother: {state['context_window'][-1].content}")
 
 if __name__ == "__main__":
     main()

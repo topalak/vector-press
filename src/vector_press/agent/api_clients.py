@@ -218,3 +218,22 @@ class GuardianAPIClient(BaseAPIClient):
         except requests.exceptions.RequestException as e:
             print(f"🔥 [DEBUG] Request exception occurred: {e}")
             return None
+
+
+class NewYorkTimesAPIClient(BaseAPIClient):
+    def __init__(self):
+        super().__init__(api_key=settings.NEWYORKTIMES_API,
+                         base_url="https://api.nytimes.com/svc/")
+
+
+
+
+
+
+
+
+
+
+1- can you explain why would I make llm, tavily_client and guardian_client private?
+2-  how can i add data validation process?
+3-

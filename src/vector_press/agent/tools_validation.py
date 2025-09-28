@@ -3,6 +3,7 @@ from pydantic import BaseModel, Field
 class TavilySearchRequest(BaseModel):
     """Tavily Web Search is for general web searches"""
 
+#TODO maybe we can handle it with literal
     query: str = Field(..., min_length=1, max_length=50, description="This parameter is MANDATORY and you need to pass it as 'query' ")
     max_results: int = Field(default=5, ge=1, le=20, description="Max results to return")  #ge = "greater than or equal to" (≥)  and   le = "less than or equal to" (≤)
     topic: str = Field(default='general',exclude='news', description="Search topic, you can select one of those 'general', 'finance'")
