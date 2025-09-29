@@ -2,13 +2,10 @@ from langchain_core.messages import HumanMessage, BaseMessage, SystemMessage, To
 from langgraph.graph.message import add_messages
 from langgraph.graph import StateGraph, START, END
 from typing import TypedDict, Annotated
-from datetime import datetime
-import datetime
-from vector_press.agent.api_clients import GuardianAPIClient
-from vector_press.agent.tools_validation import TavilySearch, GuardianSearchRequest
-from vector_press.llm_embedding_initializer import LLMManager
-from config import settings
-from tavily import TavilyClient
+from src.vector_press.agent.news_api_client import GuardianAPIClient
+from src.vector_press.agent.web_search_client import TavilyWebSearchClient
+from src.vector_press.agent.tools_validation import TavilySearch, GuardianSearchRequest
+from src.vector_press.llm_embedding_initializer import LLMManager
 
 INSTRUCTIONS = """You are a smart and helpful news assistant. Your name is Big Brother.
 
@@ -50,8 +47,7 @@ class AgentState(TypedDict):
     """State class for LangGraph conversation flow"""
     context_window: Annotated[list[BaseMessage], add_messages]  # keeps every type of message with BaseMessage
     query: str
-    #tool_messages: list[str]
-    #TODO we can use it for write context text engineering
+    tool_messages: BaseMessage
 
 class VectorPressAgent:
     """Handles Agent's processing and response generation"""
@@ -59,8 +55,8 @@ class VectorPressAgent:
     def __init__(self, llm_manager: LLMManager, state: AgentState):
         """Initialize with LLM manager, Supabase vector store, and add INSTRUCTIONS to state"""
         self.llm = llm_manager.get_llm()  # Get LLM from manager
-        self.tavily_client = TavilyClient(api_key=settings.TAVILY_API_KEY)
-        self.guardian_client = GuardianAPIClient()
+        self.tavily_search_client = TavilyWebSearchClient()  # Web search client
+        self.guardian_client = GuardianAPIClient()  # News API client
 
         tools = [self.tavily_web_search, self.search_guardian_articles, #self.newyorktimes
                  ]
@@ -99,40 +95,21 @@ class VectorPressAgent:
             else:
                 continue
 
+            # TODO, add a summarizer here for tool message
+
             # Add tool response
             state['context_window'].append(ToolMessage(
                 content=tool_result,
                 name=tool_name,
                 tool_call_id=tool_call["id"]
             ))
-
         return state
 
-    def tavily_web_search(self, validation: TavilySearch) -> str:
-
-        try:
-            response = self.tavily_client.search(
-                query=validation.query,
-                max_results= validation.max_results,
-                topic= validation.topic,
-            )
-
-            # Extract all content values
-            contents = [result['content'] for result in response['results']]
-            return contents
-
-        except Exception as e:
-            print(f"Couldn't retrieve any chunk: {datetime.datetime.now().astimezone(tz=settings.TIME_ZONE)}")
-            return f"Web search failed: {str(e)}"
+    def tavily_web_search(self, validation: TavilySearch) -> list[str]:
+        return self.tavily_search_client.search(validation)
 
     def search_guardian_articles(self, validation: GuardianSearchRequest):
-            return self.guardian_client.search_articles(
-                query=validation.query,
-                section=validation.section,
-                max_pages= validation.max_pages,
-                page_size= validation.page_size,
-                order_by=validation.order_by,
-                )
+        return self.guardian_client.search_articles(validation)
 
 
 def should_continue(state: AgentState):

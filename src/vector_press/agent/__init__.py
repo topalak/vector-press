@@ -1,8 +1,8 @@
 # Main agent classes
-from .agent import VectorPressAgent, AgentState, should_continue
+from src.vector_press.agent.agent import VectorPressAgent, AgentState, should_continue
 
 # API clients
-from .api_clients import GuardianAPIClient, BaseAPIClient, extract_article_text
+from .news_api_client import GuardianAPIClient, BaseNewsAPIClient, extract_article_text
 
 # Validation models
 from .tools_validation import TavilySearch, GuardianSearchRequest
@@ -16,10 +16,10 @@ __all__ = [
 
     # API clients
     "GuardianAPIClient",
-    "BaseAPIClient",
+    "BaseNewsAPIClient",
     "extract_article_text",
 
     # Validation models
-    "TavilySearchRequest",
+    "TavilySearch",
     "GuardianSearchRequest",
 ]

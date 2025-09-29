@@ -5,9 +5,11 @@ from datetime import datetime
 import time
 import requests
 
+from src.vector_press.agent.tools_validation import GuardianSearchRequest
+
 from config import settings
 
-
+# TODO if we develop mcp server it will save us from typing different api formats for every news sources
 def extract_article_text(article_data: Dict) -> Dict | None:
     """
     Extract and clean text from Guardian API article response
@@ -95,16 +97,16 @@ def extract_article_text(article_data: Dict) -> Dict | None:
         print(f"🔥 [DEBUG] Error extracting article text: {e}")
         return None
 
-class BaseAPIClient(ABC):   # ABC = Abstract Base Class, ABC prevents creating instances of incomplete classes and forces subclasses to implement all required abstract methods.
+class BaseNewsAPIClient(ABC):   # ABC = Abstract Base Class, ABC prevents creating instances of incomplete classes and forces subclasses to implement all required abstract methods.
     def __init__(self, api_key: str, base_url: str):
         self._api_key = api_key  # attributes names
         self._base_url = base_url
 
     @abstractmethod
-    def search_articles(self) -> Dict:
+    def search_articles(self, validation) -> Dict:
         pass
 
-class GuardianAPIClient(BaseAPIClient):
+class GuardianAPIClient(BaseNewsAPIClient):
     def __init__(self):
         super().__init__(
             api_key=settings.GUARDIAN_API_KEY,  #these are parameter's name, not like base class's attribute names
@@ -113,14 +115,21 @@ class GuardianAPIClient(BaseAPIClient):
 
         print(f"🔧 [DEBUG] Guardian API Client initialized")
 
-    def search_articles(self,
-                        query: str = None,
-                        section: str = None,
-                        page_size: int = 2,
-                        from_date : str = None,
-                        show_fields: str = "all",
-                        order_by: str = None,
-                        max_pages: int = 2) -> list[Dict] | None:
+    def search_articles(self, validation : GuardianSearchRequest) -> list[Dict] | None:
+        """
+        Search articles using validation object.
+
+        Args:
+            validation: GuardianSearchRequest object with search parameters
+        """
+        # Extract parameters from validation object
+        query = validation.query
+        section = validation.section
+        page_size = validation.page_size
+        from_date = getattr(validation, 'from_date', None)
+        show_fields = getattr(validation, 'show_fields', "all")
+        order_by = validation.order_by
+        max_pages = validation.max_pages
 
         print(f"\n📡 [DEBUG] Starting API search for {max_pages} page(s)...")
 
@@ -220,7 +229,7 @@ class GuardianAPIClient(BaseAPIClient):
             return None
 
 
-class NewYorkTimesAPIClient(BaseAPIClient):
+class NewYorkTimesAPIClient(BaseNewsAPIClient):
     def __init__(self):
         super().__init__(api_key=settings.NEWYORKTIMES_API,
                          base_url="https://api.nytimes.com/svc/")
