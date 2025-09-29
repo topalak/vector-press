@@ -5,7 +5,7 @@ from .agent import VectorPressAgent, AgentState, should_continue
 from .api_clients import GuardianAPIClient, BaseAPIClient, extract_article_text
 
 # Validation models
-from .tools_validation import TavilySearchRequest, GuardianSearchRequest
+from .tools_validation import TavilySearch, GuardianSearchRequest
 
 # Export all public classes and functions
 __all__ = [

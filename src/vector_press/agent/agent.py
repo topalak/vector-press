@@ -5,7 +5,7 @@ from typing import TypedDict, Annotated
 from datetime import datetime
 import datetime
 from vector_press.agent.api_clients import GuardianAPIClient
-from vector_press.agent.tools_validation import TavilySearchRequest, GuardianSearchRequest
+from vector_press.agent.tools_validation import TavilySearch, GuardianSearchRequest
 from vector_press.llm_embedding_initializer import LLMManager
 from config import settings
 from tavily import TavilyClient
@@ -50,7 +50,7 @@ class AgentState(TypedDict):
     """State class for LangGraph conversation flow"""
     context_window: Annotated[list[BaseMessage], add_messages]  # keeps every type of message with BaseMessage
     query: str
-    tool_messages: str
+    #tool_messages: list[str]
     #TODO we can use it for write context text engineering
 
 class VectorPressAgent:
@@ -62,7 +62,8 @@ class VectorPressAgent:
         self.tavily_client = TavilyClient(api_key=settings.TAVILY_API_KEY)
         self.guardian_client = GuardianAPIClient()
 
-        tools = [self.tavily_web_search, self.search_guardian_articles]
+        tools = [self.tavily_web_search, self.search_guardian_articles, #self.newyorktimes
+                 ]
         self.structured_llm = self.llm.bind_tools(tools=tools)
         state['context_window'].append(SystemMessage(content=INSTRUCTIONS))
 
@@ -85,15 +86,15 @@ class VectorPressAgent:
             args = tool_call.get("args", {})
 
             if tool_name == "search_guardian_articles":
-                # Extract nested validation data if present
-                validation_args = args.get('validation', args)
+                #validation_args = args.get('validation') if args.get('validation') else args
+                validation_args = args
                 validation = GuardianSearchRequest(**validation_args)
                 tool_result = self.search_guardian_articles(validation)
 
             elif tool_name == "tavily_web_search":
-                # Extract nested validation data if present
-                validation_args = args.get('validation', args)
-                validation = TavilySearchRequest(**validation_args)
+                #validation_args = args.get('validation') if args.get('validation') else args
+                validation_args = args
+                validation = TavilySearch(**validation_args)
                 tool_result = self.tavily_web_search(validation)
             else:
                 continue
@@ -107,7 +108,7 @@ class VectorPressAgent:
 
         return state
 
-    def tavily_web_search(self, validation: TavilySearchRequest) -> str:
+    def tavily_web_search(self, validation: TavilySearch) -> str:
 
         try:
             response = self.tavily_client.search(
@@ -170,7 +171,6 @@ def main():
             print("\nGoodbye!")
             break
 
-        # Store user input in query field for process_query to access
         state["query"] = user_input
 
         state = app.invoke(state)
@@ -179,4 +179,6 @@ def main():
             print(f"\nBig Brother: {state['context_window'][-1].content}")
 
 if __name__ == "__main__":
+    import warnings
+    warnings.warn("this function is deprecated", DeprecationWarning)
     main()

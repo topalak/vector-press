@@ -1,63 +1,16 @@
 from langchain_ollama import ChatOllama, OllamaEmbeddings
 from langchain_groq import ChatGroq
 from langchain_core.messages import HumanMessage
-#from ai_common.llm import load_ollama_model
-from ollama import Client, ListResponse
-from tqdm import tqdm
+from ai_common.llm import _check_and_pull_ollama_model
 
 #TODO
-# 1- we can change the embedding model to version 1.5 but we need to update with embedding every article again.
-# 2- we missed a big spot, which model wants like below:
+# 1- we missed a big spot, which model wants like below:
 # text = "search_document: Your actual document content here"
 # embeddings = ollama_client.embeddings(model="nomic-embed-text", PROMPT=text)
 from config import settings
 
-def check_and_pull_ollama_model(model_name: str, ollama_url: str) -> None:
-    """Check if model exists, pull if not."""
-    ollama_client = Client(host=ollama_url)
-    response: ListResponse = ollama_client.list()
-    available_model_names = [x.model for x in response.models]
-
-    if model_name not in available_model_names:
-        print(f'Pulling {model_name}')
-        current_digest, bars = '', {}
-        for progress in ollama_client.pull(model=model_name, stream=True):
-            digest = progress.get('digest', '')
-            if digest != current_digest and current_digest in bars:
-                bars[current_digest].close()
-            if not digest:
-                print(progress.get('status'))
-                continue
-            if digest not in bars and (total := progress.get('total')):
-                bars[digest] = tqdm(total=total, desc=f'pulling {digest[7:19]}', unit='B', unit_scale=True)
-            if completed := progress.get('completed'):
-                bars[digest].update(completed - bars[digest].n)
-            current_digest = digest
-
-
-def load_ollama_model(model_name: str, ollama_url: str) -> None:
-    """Load model into memory (works for both LLM and embedding models)."""
-    check_and_pull_ollama_model(model_name=model_name, ollama_url=ollama_url)
-    ollama_client = Client(host=ollama_url)
-
-    # Try embedding first (for embedding models), fallback to generate (for LLMs)
-    try:
-        ollama_client.embeddings(model=model_name, prompt="test")
-        print(f"✅ [DEBUG] {model_name} loaded successfully (embedding model)")
-    except Exception:   #Exception part is very important it catches every error, it was set as ValueError before and it wasn't able to fetch status code 500 error.
-        try:
-            ollama_client.generate(model=model_name, prompt="test")
-            print(f"✅ [DEBUG] {model_name} loaded successfully (text generation model)")
-        except Exception as e:
-            print(f"❌ [ERROR] Failed to load model {model_name}: {e}")
-
-
-
 class LLMManager:
     """Manages LLM and embedding initialization"""
-
-    # Embedding model option
-    use_lightweight_embedding = False  # Set to True for low-resource systems
 
     def __init__(self):
         self._llm = None
@@ -71,9 +24,10 @@ class LLMManager:
         """Initialize LLM with fallback logic"""
         try:
             # Try Ollama first
-            load_ollama_model(model_name='llama3.2:3b', ollama_url=settings.OLLAMA_HOST)
+            _check_and_pull_ollama_model(model_name='llama3.2:3b', ollama_url=settings.OLLAMA_HOST)
 
-            self._llm = ChatOllama(
+
+            self._llm = ChatOllama( #langchain wrapper
                 #model='qwen3:8b',
                 model='llama3.2:3b',
                 base_url=settings.OLLAMA_HOST,
@@ -81,6 +35,7 @@ class LLMManager:
                 num_ctx=8192,
                 #reasoning=True,
             )
+
             print(f"✅ [DEBUG] Using Ollama (remote) with model: {self._llm.model}, context: {self._llm.num_ctx}")
         except Exception as e:
             print(f"⚠️ [DEBUG] Failed to initialize Ollama: {e}")
@@ -109,7 +64,7 @@ class LLMManager:
             print(f"🔄 [DEBUG] Initializing EmbeddingGemma model...")
 
             # Load/pull the embedding model first
-            load_ollama_model(model_name='embeddinggemma', ollama_url=settings.OLLAMA_HOST)
+            _check_and_pull_ollama_model(model_name='embeddinggemma', ollama_url=settings.OLLAMA_HOST)
 
             # Use LangChain's built-in OllamaEmbeddings
             self._embedding_model = OllamaEmbeddings(

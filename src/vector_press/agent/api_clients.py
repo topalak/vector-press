@@ -96,9 +96,9 @@ def extract_article_text(article_data: Dict) -> Dict | None:
         return None
 
 class BaseAPIClient(ABC):   # ABC = Abstract Base Class, ABC prevents creating instances of incomplete classes and forces subclasses to implement all required abstract methods.
-    def __init__(self, api_key:str, base_url:str):
-        self.api_key = api_key
-        self.base_url = base_url
+    def __init__(self, api_key: str, base_url: str):
+        self._api_key = api_key  # attributes names
+        self._base_url = base_url
 
     @abstractmethod
     def search_articles(self) -> Dict:
@@ -107,7 +107,7 @@ class BaseAPIClient(ABC):   # ABC = Abstract Base Class, ABC prevents creating i
 class GuardianAPIClient(BaseAPIClient):
     def __init__(self):
         super().__init__(
-            api_key=settings.GUARDIAN_API_KEY,
+            api_key=settings.GUARDIAN_API_KEY,  #these are parameter's name, not like base class's attribute names
             base_url="https://content.guardianapis.com"
         )
 
@@ -125,11 +125,11 @@ class GuardianAPIClient(BaseAPIClient):
         print(f"\n📡 [DEBUG] Starting API search for {max_pages} page(s)...")
 
         # Build API endpoint
-        endpoint = f"{self.base_url}/search"
+        endpoint = f"{self._base_url}/search"
 
         # Build base parameters
         base_params = {
-            "api-key": self.api_key
+            "api-key": self._api_key
         }
 
         # Add optional parameters
@@ -224,16 +224,3 @@ class NewYorkTimesAPIClient(BaseAPIClient):
     def __init__(self):
         super().__init__(api_key=settings.NEWYORKTIMES_API,
                          base_url="https://api.nytimes.com/svc/")
-
-
-
-
-
-
-
-
-
-
-1- can you explain why would I make llm, tavily_client and guardian_client private?
-2-  how can i add data validation process?
-3-
