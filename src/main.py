@@ -1,10 +1,7 @@
-from vector_press.agent.agent import main
+from vector_press.agent import VectorPressAgent
 
-if __name__ == "__main__":
-    main()
-
-
-
+agent = VectorPressAgent(model_name='llama3.2:3b')
+response = agent.ask("Can you fetch latest news about Ukraine and Russia war?")
 
 #TODO
 # for now I need to convert database uploading method to a tool

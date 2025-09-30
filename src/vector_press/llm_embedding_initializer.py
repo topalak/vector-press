@@ -20,16 +20,15 @@ class LLMManager:
 
         print(f"🔧 [DEBUG] LLM Manager initialized")
 
-    def _initialize_llm(self):
+    def _initialize_llm(self, model_name:str):
         """Initialize LLM with fallback logic"""
         try:
             # Try Ollama first
-            _check_and_pull_ollama_model(model_name='llama3.2:3b', ollama_url=settings.OLLAMA_HOST)
-
+            _check_and_pull_ollama_model(model_name=model_name, ollama_url=settings.OLLAMA_HOST)
 
             self._llm = ChatOllama( #langchain wrapper
                 #model='qwen3:8b',
-                model='llama3.2:3b',
+                model=model_name,
                 base_url=settings.OLLAMA_HOST,
                 temperature=0,
                 num_ctx=8192,
@@ -80,11 +79,11 @@ class LLMManager:
             print(f"💡 [DEBUG] Make sure Ollama is running and accessible")
             self._embedding_model = None
 
-    def get_llm(self):
+    def get_llm(self, model_name:str):
         """Get the LLM, initializing it if needed"""
         if not self._llm_initialized:
             print(f"🔄 [DEBUG] loading LLM...")
-            self._initialize_llm()
+            self._initialize_llm(model_name=model_name)
             self._llm_initialized = True
         return self._llm
 
@@ -109,7 +108,7 @@ def main():
 
         # Test LLM
         print("\n🤖 Testing LLM...")
-        llm = llm_manager.get_llm()
+        llm = llm_manager.get_llm(model_name="llama-3.1-8b-instant")
         if llm:
             response = llm.invoke([HumanMessage(content="Say hello")])
             print(f"✅ LLM Response: {response.content[:50]}...")
