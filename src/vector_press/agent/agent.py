@@ -6,7 +6,7 @@ from src.vector_press.agent.tools_validation import TavilySearch, GuardianSearch
 from src.vector_press.llm_embedding_initializer import LLMManager
 
 
-from state import AgentState
+from src.vector_press.agent.state import AgentState
 
 INSTRUCTIONS = """You are a smart and helpful news assistant. Your name is Big Brother.
 
@@ -47,12 +47,11 @@ from previous unrelated queries unless user wants it.
 
 class VectorPressAgent:
     """Handles Agent's processing and response generation"""
-    #TODO self, (asd
-    # llm,
-    # llm_manager)
-    def __init__(self,model_name:str = 'llama3.2:3b'):
-        llm_manager = LLMManager()   # TODO maybe we shouldn't invoke it with self because if we look BBB's approach he's invoking the llm first after that runs it's agent, llm_config
-        self.llm = llm_manager.get_llm(model_name=model_name)  #TODO we need to add pydantic data validation for models
+
+    def __init__(self, model_name: str = 'llama3.2:3b'):
+        """Initialize agent with model and build graph."""
+        llm_manager = LLMManager()
+        self.llm = llm_manager.get_llm(model_name=model_name)
 
         self.tavily_search_client = TavilyWebSearchClient()
         self.guardian_client = GuardianAPIClient()
@@ -60,14 +59,13 @@ class VectorPressAgent:
         tools = [self.tavily_web_search, self.search_guardian_articles]
         self.structured_llm = self.llm.bind_tools(tools=tools)
 
-        self.state = AgentState(
-            query= "",
-            context_window= [SystemMessage(content=INSTRUCTIONS)],
-            tool_messages= None
+        self.state: AgentState = AgentState(
+            context_window=[SystemMessage(content=INSTRUCTIONS)],
+            query="",
+            tool_messages=None
         )
-        # Build the graph
-        self.app = self.graph()
-        #self.ask()
+        # Build the graph once during initialization
+        self.app = self._build_graph()
 
     def llm_call(self, state: AgentState) -> AgentState:
         """LLM call that handles both initial user input and continuation after tools"""
@@ -87,15 +85,11 @@ class VectorPressAgent:
             args = tool_call.get("args", {})
 
             if tool_name == "search_guardian_articles":
-                #validation_args = args.get('validation') if args.get('validation') else args
-                validation_args = args
-                validation = GuardianSearchRequest(**validation_args)
+                validation = GuardianSearchRequest(**args)
                 tool_result = self.search_guardian_articles(validation)
 
             elif tool_name == "tavily_web_search":
-                #validation_args = args.get('validation') if args.get('validation') else args
-                validation_args = args
-                validation = TavilySearch(**validation_args)
+                validation = TavilySearch(**args)
                 tool_result = self.tavily_web_search(validation)
             else:
                 continue
@@ -116,8 +110,8 @@ class VectorPressAgent:
     def search_guardian_articles(self, validation: GuardianSearchRequest):
         return self.guardian_client.search_articles(validation)
 
-    def graph(self):
-        """Build and return the LangGraph pipeline"""
+    def _build_graph(self):
+        """Build and return the LangGraph pipeline (internal method)."""
         graph = StateGraph(AgentState)
 
         graph.add_node('llm_call', self.llm_call)
@@ -126,22 +120,26 @@ class VectorPressAgent:
         graph.add_edge(START, 'llm_call')
         graph.add_conditional_edges(
             source='llm_call',
-            path=should_continue,  # Call the module-level function directly
+            path=should_continue,
             path_map={'continue': 'tools_call', 'end': END}
         )
         graph.add_edge('tools_call', 'llm_call')
 
-        # Build graph using the agent's method
-        app = graph.compile()
+        return graph.compile()
 
-        return app
+    def ask(self, query: str) -> str:
+        """Ask the agent a question and maintain conversation state."""
+        self.state.query = query
 
-    def ask(self, query:str =None):
-
-        self.state = query
+        # Invoke graph (returns dict) and convert back to AgentState
         result = self.app.invoke(self.state)
-        #self.state = result
-        return result
+        self.state = AgentState(**result)
+
+        if self.state.context_window:
+            last_message = self.state.context_window[-1]
+            return last_message.content
+
+        return "No response generated"
 
 
 
@@ -154,10 +152,10 @@ def should_continue(state: AgentState):
         return 'end'
 
 def main():
+    """Interactive chat session with the agent."""
+    print("\nStarting Big Brother (type 'exit' to quit)...")
 
-    print("\nStarting (type 'exit' to quit)...")
-
-    # Create agent (no dependencies needed)
+    # Create agent with default model
     agent = VectorPressAgent()
 
     while True:
@@ -166,13 +164,8 @@ def main():
             print("\nGoodbye!")
             break
 
-        agent.state.query = user_input
-
-        # Run the agent
-        state = agent.ask(query = agent.state)
-
-        if state['context_window']:
-            print(f"\nBig Brother: {state['context_window'][-1].content}")
+        response = agent.ask(user_input)
+        print(f"\nBig Brother: {response}")
 
 if __name__ == "__main__":
     import warnings
