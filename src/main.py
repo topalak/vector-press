@@ -1,7 +1,7 @@
 from vector_press.agent.agent import VectorPressAgent
 
 agent = VectorPressAgent(model_name='llama3.2:3b')
-response = agent.ask("Can you fetch latest news about Ukraine and Russia war?")
+response = agent.ask('Who is Cristiano Ronaldo')
 
 
 #TODO

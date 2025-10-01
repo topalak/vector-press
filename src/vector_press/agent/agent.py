@@ -129,15 +129,23 @@ class VectorPressAgent:
 
     def ask(self, query: str) -> str:
         """Ask the agent a question and maintain conversation state."""
-        self.state.query = query
 
-        # Invoke graph (returns dict) and convert back to AgentState
-        result = self.app.invoke(self.state)
-        self.state = AgentState(**result)
+        while True:
+            if query.lower() == "exit":
+                print("\nGoodbye!")
+                break
 
-        if self.state.context_window:
-            last_message = self.state.context_window[-1]
-            return last_message.content
+            self.state.query = query
+
+            # Invoke graph (returns dict) and convert back to AgentState
+            result = self.app.invoke(self.state)
+            self.state = AgentState(**result)
+
+            if self.state.context_window:
+                last_message = self.state.context_window[-1]
+                print(last_message.content)
+
+            query = input("\nYou: ").strip()
 
         return "No response generated"
 
