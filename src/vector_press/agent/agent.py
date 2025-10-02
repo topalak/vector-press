@@ -18,7 +18,7 @@ You can call these tools in series or in parallel, your functionality is conduct
 
 <available_tools>
 1. **search_guardian_articles**: For NEWS-related searches. If there is 'news' word in query you probably need to call search_guardian_articles.
-2. **tavily_web_search**: For general web searches - use this for non-news topics like technology guides, finance information, etc.
+2. **tavily_web_search**: For general web searches - use this for GENERAL searches and topics like technology guides, finance information, etc.
 </available_tools>
 
 <tool_guideline>
@@ -83,6 +83,7 @@ class VectorPressAgent:
         for tool_call in state.context_window[-1].tool_calls:
             tool_name = tool_call["name"]
             args = tool_call.get("args", {})
+            print('osssuruk')
 
             if tool_name == "search_guardian_articles":
                 validation = GuardianSearchRequest(**args)
@@ -159,23 +160,12 @@ def should_continue(state: AgentState):
     else:
         return 'end'
 
+
 def main():
-    """Interactive chat session with the agent."""
-    print("\nStarting Big Brother (type 'exit' to quit)...")
 
-    # Create agent with default model
-    agent = VectorPressAgent()
+    agent = VectorPressAgent(model_name='llama3.2:3b')
+    agent.ask('Who is Cristiano Ronaldo')
+    #Can you fetch latest news about Ukraine and Russia?
 
-    while True:
-        user_input = input("\nYou: ").strip()
-        if user_input.lower() == "exit":
-            print("\nGoodbye!")
-            break
-
-        response = agent.ask(user_input)
-        print(f"\nBig Brother: {response}")
-
-if __name__ == "__main__":
-    import warnings
-    warnings.warn("this function is deprecated", DeprecationWarning)
+if __name__ == '__main__':
     main()

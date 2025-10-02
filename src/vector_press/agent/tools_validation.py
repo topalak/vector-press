@@ -1,15 +1,14 @@
 from pydantic import BaseModel, Field
 
 class TavilySearch(BaseModel):
-    """Web Search is for general web searches"""
-
+    """For general web searches - use this for GENERAL searches and topics like technology guides, finance information, etc."""
 #TODO maybe we can handle it with literal
     query: str = Field(..., min_length=1, max_length=500, description="Write the best web search keywords depending user's input ")
     max_results: int = Field(default=5, ge=1, le=20, description="Max results to return")  #ge = "greater than or equal to" (≥)  and   le = "less than or equal to" (≤)
     topic: str = Field(default='general',exclude='news', description="Search topic, you can select one of those 'general', 'finance'")
 
 class GuardianSearchRequest(BaseModel):
-    """This tool is for news searches"""
+    """For NEWS-related searches. If there is 'news' word in query you probably need to call search_guardian_articles."""
 
     query: str = Field(..., min_length=1, max_length=500, description="Search query for news articles")
     section: str = Field(default=None, description="Guardian section (e.g., 'world', 'politics', 'business', 'technology')")

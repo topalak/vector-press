@@ -1,7 +1,7 @@
 from langchain_ollama import ChatOllama, OllamaEmbeddings
 from langchain_groq import ChatGroq
 from langchain_core.messages import HumanMessage
-from ai_common.llm import _check_and_pull_ollama_model
+from ai_common.llm import _check_and_pull_ollama_model  #TODO add load_ollama for saving more time
 
 #TODO
 # 1- we missed a big spot, which model wants like below:
@@ -27,7 +27,6 @@ class LLMManager:
             _check_and_pull_ollama_model(model_name=model_name, ollama_url=settings.OLLAMA_HOST)
 
             self._llm = ChatOllama( #langchain wrapper
-                #model='qwen3:8b',
                 model=model_name,
                 base_url=settings.OLLAMA_HOST,
                 temperature=0,
