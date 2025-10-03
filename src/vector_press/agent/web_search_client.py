@@ -21,18 +21,22 @@ class TavilyWebSearchClient(BaseWebSearchClient):
         # Initialize the actual Tavily client here
         self.tavily_client = TavilyClient(api_key=self._api_key)
 
-    def search(self, validation: TavilySearch) -> list[str]:
+    def search(self, validation : TavilySearch) -> list[str]:
         """Main search method - this is what agent.py should call"""
         try:
+            query = validation.query
+            max_results = validation.max_results
+            topic = validation.topic
+
             response = self.tavily_client.search(
-                query=validation.query,
-                max_results=validation.max_results,
-                topic=validation.topic,
+                query=query,
+                max_results=max_results,
+                topic=topic,
             )
             # Extract all content values
             contents = [result['content'] for result in response['results']]
             return contents
 
         except Exception as e:
-            print(f"Couldn't retrieve any chunk: {datetime.now().astimezone(tz=settings.TIME_ZONE)}")
+            print(f"Couldn't retrieve anything: {datetime.now().astimezone(tz=settings.TIME_ZONE)}")
             return [f"Web search failed: {str(e)}"]

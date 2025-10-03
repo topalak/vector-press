@@ -13,6 +13,8 @@ class GuardianSearchRequest(BaseModel):
     query: str = Field(..., min_length=1, max_length=500, description="Search query for news articles")
     section: str = Field(default=None, description="Guardian section (e.g., 'world', 'politics', 'business', 'technology')")
     page_size: int = Field(default=2, ge=1, le=200, description="Articles per page. Use 3 for quick/single result")
-    max_pages: int = Field(default=1, ge=1, le=20, description="Maximum pages to fetch. Use 1 for quick results")
+    max_pages: int = Field(default=1, ge=1, le=20, description="Maximum pages to fetch. Use 1 for quick results") #TODO I need to write more detailed explanations, because when I say fetc 200 articles, it defines bot mac_oages and page_size 200
     order_by: str = Field(default="relevance", description="Sort order: 'relevance', 'newest', 'oldest'")
 
+#state is a Pydantic model (AgentState), not a dictionary. Pydantic models don't have a .get() method. we aren't able to pass it as dictionary like --> state['context_window'] we need to pass it like
+# state.context_window

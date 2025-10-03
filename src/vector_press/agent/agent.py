@@ -56,7 +56,7 @@ class VectorPressAgent:
         self.tavily_search_client = TavilyWebSearchClient()
         self.guardian_client = GuardianAPIClient()
 
-        tools = [self.tavily_web_search, self.search_guardian_articles]
+        tools = [TavilySearch, GuardianSearchRequest]
         self.structured_llm = self.llm.bind_tools(tools=tools)
 
         self.state: AgentState = AgentState(
@@ -64,7 +64,6 @@ class VectorPressAgent:
             query="",
             tool_messages=None
         )
-        # Build the graph once during initialization
         self.app = self._build_graph()
 
     def llm_call(self, state: AgentState) -> AgentState:
@@ -83,33 +82,36 @@ class VectorPressAgent:
         for tool_call in state.context_window[-1].tool_calls:
             tool_name = tool_call["name"]
             args = tool_call.get("args", {})
-            print('osssuruk')
 
-            if tool_name == "search_guardian_articles":
-                validation = GuardianSearchRequest(**args)
-                tool_result = self.search_guardian_articles(validation)
+            if tool_name == "GuardianSearchRequest":
+                print(f"Guardian's args{GuardianSearchRequest(**args)}")
+                tool_result = self.search_guardian_articles(GuardianSearchRequest(**args))
 
-            elif tool_name == "tavily_web_search":
-                validation = TavilySearch(**args)
-                tool_result = self.tavily_web_search(validation)
+            elif tool_name == "TavilySearch":
+                print(f"Tavily's args{TavilySearch(**args)}")
+                tool_result = self.tavily_web_search(TavilySearch(**args))  #we are checking values with pydantic HERE by "TavilySearch(**args))
+
             else:
-                continue
+                tool_result= f"There is no tool for that"
+                print('') #TODO handle here by using tool_call's args
 
             # TODO, add a summarizer here for tool message
 
-            # Add tool response
             state.context_window.append(ToolMessage(
                 content=tool_result,
                 name=tool_name,
                 tool_call_id=tool_call["id"]
             ))
-        return state
+        return state  # TODO 'Using **tavily_web_search** tool to find the product of 15 and 764:   15 * 764 = 11460'   its not related with web search and model has answered that with its knowledge we need to handle that problem, actually there is no problem with that, the only issue is LLM does not adding a value invalid tool calls.
 
     def tavily_web_search(self, validation: TavilySearch) -> list[str]:
+        """Web Search Tool"""
+        print(f"validation : {validation}")
         return self.tavily_search_client.search(validation)
 
-    def search_guardian_articles(self, validation: GuardianSearchRequest):
-        return self.guardian_client.search_articles(validation)
+    def search_guardian_articles(self, validation: GuardianSearchRequest) -> list[dict]:
+        """News Retrieve Tool"""
+        return self.guardian_client.search_articles(validation) #look for what shape is returns and set it in signature
 
     def _build_graph(self):
         """Build and return the LangGraph pipeline (internal method)."""
@@ -163,9 +165,12 @@ def should_continue(state: AgentState):
 
 def main():
 
-    agent = VectorPressAgent(model_name='llama3.2:3b')
-    agent.ask('Who is Cristiano Ronaldo')
-    #Can you fetch latest news about Ukraine and Russia?
+    agent = VectorPressAgent(model_name='qwen3:8b')  #TODO, add num_ctx and reasoning and please add docstring for reasoning, but when user goes to source of VectorPressAgent wont be able to see llm manager
+    #TODO handle it, you can call directly llm manager
+    agent.ask("Can you fetch 200 articles about Ukraine and Russia war?")
+    #can you multiple 15 and 764 by using tool calls?
+    #Who is Cristiano Ronaldo?
+    #Can you fetch latest news about Ukraine and Russia war?
 
 if __name__ == '__main__':
     main()
