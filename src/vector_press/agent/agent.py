@@ -8,6 +8,8 @@ from config import settings
 
 from src.vector_press.agent.state import AgentState
 
+pruning_llm_config = ModelConfig(model="llama3.2:3b", model_provider_url=settings.OLLAMA_HOST)
+
 INSTRUCTIONS = """You are a smart and helpful news assistant. Your name is Big Brother.
 
 <task>
@@ -43,14 +45,32 @@ Each response should ONLY use context that directly relates to the user's CURREN
 from previous unrelated queries unless user wants it.
 </pay_attention>
 """
+tool_pruning_prompt = """You are an expert at extracting relevant information from documents.
 
+Your task: Analyze the provided document and extract ONLY the information that directly answers or supports the user's specific request. Remove all irrelevant content.
+
+User's Request: {user_request}
+
+Instructions for pruning:
+1. Keep information that directly addresses the user's question
+2. Preserve key facts, data, and examples that support the answer
+3. Remove tangential discussions, unrelated topics, and excessive background
+4. Maintain the logical flow and context of relevant information
+5. If multiple subtopics are discussed, focus only on those relevant to the request
+6. Preserve important quotes, statistics, and research findings when relevant
+
+Return the pruned content in a clear, concise format that maintains readability while focusing solely on what's needed to answer the user's request."""
 
 class VectorPressAgent:
     """Handles Agent's processing and response generation"""
 
     def __init__(self, llm):
         """Initialize agent with model and build graph."""
-        #llm_manager = LLMManager()
+
+
+        self.pruning_llm = pruning_llm_config.get_llm()
+        #self.pruning_llm = self.pruning_llm.append(SystemMessage(content=tool_pruning_prompt))
+
         self.llm = llm
 
         self.tavily_search_client = TavilyWebSearchClient()
@@ -59,7 +79,7 @@ class VectorPressAgent:
         tools = [TavilySearch, GuardianSearchRequest]
         self.structured_llm = self.llm.bind_tools(tools=tools)
 
-        self.state: AgentState = AgentState(
+        self.state: AgentState = AgentState(  #check is there tools_call in default llm
             context_window=[SystemMessage(content=INSTRUCTIONS)],
             query="",
             tool_messages=None
@@ -83,33 +103,36 @@ class VectorPressAgent:
             tool_name = tool_call["name"]
             args = tool_call.get("args", {})
 
-            if tool_name == "GuardianSearchRequest":
-                print(f"Guardian's args{GuardianSearchRequest(**args)}")
-                tool_result = self.search_guardian_articles(GuardianSearchRequest(**args))
+            tool_result = ""  #TODO ask it to BBB, im getting error if i remove that variable
 
-            elif tool_name == "TavilySearch":
-                print(f"Tavily's args{TavilySearch(**args)}")
-                tool_result = self.tavily_web_search(TavilySearch(**args))  #we are checking values with pydantic HERE by "TavilySearch(**args))
+            match tool_name:
+                case "GuardianSearchRequest":
+                    tool_result = self.search_guardian_articles(GuardianSearchRequest(**args))
+                case "TavilySearch":
+                    tool_result = self.tavily_web_search(TavilySearch(**args))
+                case _:
+                    tool_result = f"Unknown tool: {tool_name}"
 
-            else:
-                tool_result= f"There is no tool for that"
-                print('') #TODO handle here by using tool_call's args
-
-            # TODO, add a summarizer here for tool message
+            tool_result = '\n'.join(tool_result)
+            if len(tool_result) > 0:
+                tool_result = self.pruning_llm.invoke([
+            {"role": "system", "content": tool_pruning_prompt.format(user_request=state.query[-1]),},
+            {"role": "user", "content": tool_result},
+        ])
 
             state.context_window.append(ToolMessage(
                 content=tool_result,
                 name=tool_name,
                 tool_call_id=tool_call["id"]
             ))
-        return state  # TODO 'Using **tavily_web_search** tool to find the calculation of 15 and 764:,   its not related with web search and model has answered that with its knowledge we need to handle that problem, actually there is no problem with that, the only issue is LLM does not adding a value invalid tool calls.
+        return state
 
-    def tavily_web_search(self, validation: TavilySearch) -> list[str]:
+    def tavily_web_search(self, validation: TavilySearch) -> list[str]:   #TODO check both method's return types (debug)
         """Web Search Tool"""
         print(f"validation : {validation}")
         return self.tavily_search_client.search(validation)
 
-    def search_guardian_articles(self, validation: GuardianSearchRequest) -> list[dict]:
+    def search_guardian_articles(self, validation: GuardianSearchRequest) -> list[str]:
         """News Retrieve Tool"""
         return self.guardian_client.search_articles(validation) #look for what shape is returns and set it in signature
 
@@ -165,12 +188,12 @@ def should_continue(state: AgentState):
 def main():
 
 
-    config = ModelConfig(model="qwen3:8b", model_provider_url=settings.OLLAMA_HOST)
+    config = ModelConfig(model="qwen3:8b", model_provider_url=settings.OLLAMA_HOST, reasoning=True)
     llm = config.get_llm()
     agent = VectorPressAgent(llm)
 
-    agent.ask("Who is Cristiano Ronaldo?")
-    #can you multiple 15 and 764 by using tool calls?
+    agent.ask("Can you fetch latest news about Ukraine and Russia war?")
+    #can you multiple 15 and 764 by calling tools?
     #Who is Cristiano Ronaldo?
     #Can you fetch 200 articles about Ukraine and Russia war?
     #Can you fetch latest news about Ukraine and Russia war?

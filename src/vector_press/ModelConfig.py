@@ -8,10 +8,10 @@ class ModelConfig:
         self,
         model:str,
         model_provider_url:str,   #as we can see ":" means its required
-        num_ctx:int = 8192,         #when we look it here there is "=" and that means is optional, this is default value and you can change it in your config
+        num_ctx:int = 8192,         #when we look it here there is "=" and that means is optional, this is default value, and you can change it in your config
         reasoning:bool = False,
         temperature:int = 0,
-        num_predict:int = 128,
+        #num_predict:int = 128,   that causes tool call error, model cant generate tool call because of the limitation.
     ):
 
         self.model = model
@@ -19,19 +19,19 @@ class ModelConfig:
         self.num_ctx = num_ctx      #when __init__ invokes it creates dummies when it comes that line they are coming real variables
         self.reasoning = reasoning
         self.temperature = temperature
-        self.num_predict = num_predict
+        #self.num_predict = num_predict
 
     def get_llm(self):
         #we are reaching that method by line 55, and we have self dict which equiv
         load_ollama_model(self.model, self.model_provider_url)
 
-        return ChatOllama(
+        return ChatOllama(  #let's wrap our model
             model=self.model,
             base_url=self.model_provider_url,
             num_ctx=self.num_ctx,
             reasoning=self.reasoning,
             temperature=self.temperature,
-            num_predict=self.num_predict,
+            #num_predict=self.num_predict,
         )
 
     def get_embedding(self):
