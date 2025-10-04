@@ -131,7 +131,7 @@ class GuardianAPIClient(BaseNewsAPIClient):
         order_by = validation.order_by
         max_pages = validation.max_pages
 
-        print(f"\n📡 [DEBUG] Starting API search for {max_pages} page(s)...")
+        print(f"\n📡 [DEBUG] Starting search for {max_pages} page(s)...")
 
         # Build API endpoint
         endpoint = f"{self._base_url}/search"

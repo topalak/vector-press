@@ -3,8 +3,8 @@ from langgraph.graph import StateGraph, START, END
 from src.vector_press.agent.news_api_client import GuardianAPIClient
 from src.vector_press.agent.web_search_client import TavilyWebSearchClient
 from src.vector_press.agent.tools_validation import TavilySearch, GuardianSearchRequest
-from src.vector_press.llm_embedding_initializer import LLMManager
-
+from src.vector_press.ModelConfig import ModelConfig
+from config import settings
 
 from src.vector_press.agent.state import AgentState
 
@@ -48,10 +48,10 @@ from previous unrelated queries unless user wants it.
 class VectorPressAgent:
     """Handles Agent's processing and response generation"""
 
-    def __init__(self, model_name: str = 'llama3.2:3b'):
+    def __init__(self, llm):
         """Initialize agent with model and build graph."""
-        llm_manager = LLMManager()
-        self.llm = llm_manager.get_llm(model_name=model_name)
+        #llm_manager = LLMManager()
+        self.llm = llm
 
         self.tavily_search_client = TavilyWebSearchClient()
         self.guardian_client = GuardianAPIClient()
@@ -102,7 +102,7 @@ class VectorPressAgent:
                 name=tool_name,
                 tool_call_id=tool_call["id"]
             ))
-        return state  # TODO 'Using **tavily_web_search** tool to find the product of 15 and 764:   15 * 764 = 11460'   its not related with web search and model has answered that with its knowledge we need to handle that problem, actually there is no problem with that, the only issue is LLM does not adding a value invalid tool calls.
+        return state  # TODO 'Using **tavily_web_search** tool to find the calculation of 15 and 764:,   its not related with web search and model has answered that with its knowledge we need to handle that problem, actually there is no problem with that, the only issue is LLM does not adding a value invalid tool calls.
 
     def tavily_web_search(self, validation: TavilySearch) -> list[str]:
         """Web Search Tool"""
@@ -162,14 +162,17 @@ def should_continue(state: AgentState):
     else:
         return 'end'
 
-
 def main():
 
-    agent = VectorPressAgent(model_name='qwen3:8b')  #TODO, add num_ctx and reasoning and please add docstring for reasoning, but when user goes to source of VectorPressAgent wont be able to see llm manager
-    #TODO handle it, you can call directly llm manager
-    agent.ask("Can you fetch 200 articles about Ukraine and Russia war?")
+
+    config = ModelConfig(model="qwen3:8b", model_provider_url=settings.OLLAMA_HOST)
+    llm = config.get_llm()
+    agent = VectorPressAgent(llm)
+
+    agent.ask("Who is Cristiano Ronaldo?")
     #can you multiple 15 and 764 by using tool calls?
     #Who is Cristiano Ronaldo?
+    #Can you fetch 200 articles about Ukraine and Russia war?
     #Can you fetch latest news about Ukraine and Russia war?
 
 if __name__ == '__main__':
