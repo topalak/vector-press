@@ -1,8 +1,8 @@
-# Vector-Press 🤖
+# Vector-Press 
 
 **AI-Powered News Assistant** - An intelligent agentic system that retrieves news and web information using LangGraph, The Guardian API, Tavily search, and conversational AI.
 
-## 🚀 Overview
+##  Overview
 
 Vector-Press is an **agentic news assistant** named **Big Brother** that intelligently orchestrates multiple tools to answer user queries about news and current events. Built with LangGraph and LangChain, it features a tool-calling loop that decides which data sources to use based on the query.
 
@@ -21,11 +21,10 @@ The agent operates in a **reasoning → action → observation** loop:
 
 ### Key Features
 
-- 🧠 **Agentic Architecture**: LangGraph-based autonomous decision-making
-- 🔧 **Multi-Tool Orchestration**: Automatic tool selection (Guardian API + Tavily Search)
-- ✅ **Pydantic Validation**: Two-step validation (schema guidance + runtime checking)
-- 🎯 **Stateful Conversations**: Maintains context across multiple queries
-- ⚡ **GPU-Optimized Embeddings**: Dynamic batch sizing based on VRAM availability
+-  **Agentic Architecture**: LangGraph-based autonomous decision-making
+-  **Multi-Tool Orchestration**: Automatic tool selection (Guardian API + Tavily Search)
+-  **Pydantic Validation**: Two-step validation (schema guidance + runtime checking)
+-  **GPU-Optimized Embeddings**: Dynamic batch sizing based on VRAM availability
 
 ## 📁 Project Structure
 
@@ -56,7 +55,7 @@ vector-press/
 └── README.md                                       # Project documentation
 ```
 
-## 📦 Installation
+## Installation
 
 ### Prerequisites
 
@@ -107,7 +106,7 @@ vector-press/
    - Enable the **pgvector** extension in your database
    - Create the required tables and functions (see [Database Schema](#database-schema))
 
-## 🚀 Usage
+##  Usage
 
 ### Interactive CLI Chat
 

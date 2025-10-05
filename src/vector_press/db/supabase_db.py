@@ -6,7 +6,7 @@ import torch
 
 from config import settings
 
-from vector_press.ModelConfig import ModelConfig
+from vector_press.model_config import ModelConfig
 from vector_press.agent.news_api_client import GuardianAPIClient
 
 #TODO explore the pytest

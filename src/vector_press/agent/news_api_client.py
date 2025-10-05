@@ -113,7 +113,7 @@ class GuardianAPIClient(BaseNewsAPIClient):
             base_url="https://content.guardianapis.com"
         )
 
-        print(f"🔧 [DEBUG] Guardian API Client initialized")
+        #print(f"🔧 [DEBUG] Guardian API Client initialized")
 
     def search_articles(self, validation : GuardianSearchRequest) -> list[Dict] | None:
         """

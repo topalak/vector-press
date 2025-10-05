@@ -45,7 +45,7 @@ class ModelConfig:
 
 
 def main():
-    from vector_press.agent import VectorPressAgent  #avoiding circular import dependency, ModelConfig.py: "I need VectorPressAgent first!" -> agent.py: "I need ModelConfig first!" -> ModelConfig.py: "But I'm not finished loading!" ->  It will cause circular dependency error
+    from vector_press.agent import VectorPressAgent  #avoiding circular import dependency, model_config.py: "I need VectorPressAgent first!" -> agent.py: "I need ModelConfig first!" -> model_config.py: "But I'm not finished loading!" ->  It will cause circular dependency error
 
     config = ModelConfig(model='qwen3:8b', model_provider_url=settings.OLLAMA_HOST)
     #now when above line has invoked it creates a dict which contains model's parameters

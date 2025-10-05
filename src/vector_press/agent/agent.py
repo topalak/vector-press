@@ -1,9 +1,9 @@
-from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
+from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage, AIMessage
 from langgraph.graph import StateGraph, START, END
 from src.vector_press.agent.news_api_client import GuardianAPIClient
 from src.vector_press.agent.web_search_client import TavilyWebSearchClient
 from src.vector_press.agent.tools_validation import TavilySearch, GuardianSearchRequest
-from src.vector_press.ModelConfig import ModelConfig
+from src.vector_press.model_config import ModelConfig
 from config import settings
 
 from src.vector_press.agent.state import AgentState
@@ -66,11 +66,7 @@ class VectorPressAgent:
 
     def __init__(self, llm):
         """Initialize agent with model and build graph."""
-
-
         self.pruning_llm = pruning_llm_config.get_llm()
-        #self.pruning_llm = self.pruning_llm.append(SystemMessage(content=tool_pruning_prompt))
-
         self.llm = llm
 
         self.tavily_search_client = TavilyWebSearchClient()
@@ -114,11 +110,14 @@ class VectorPressAgent:
                     tool_result = f"Unknown tool: {tool_name}"
 
             tool_result = '\n'.join(tool_result)
+
             if len(tool_result) > 0:
                 tool_result = self.pruning_llm.invoke([
-            {"role": "system", "content": tool_pruning_prompt.format(user_request=state.query[-1]),},
-            {"role": "user", "content": tool_result},
-        ])
+                SystemMessage(content=tool_pruning_prompt.format(user_request=state.query)),  # tool_pruning_prompt likely contains a placeholder like {user_request} that needs to be filled in tool_pruning_prompt1
+                HumanMessage(content=state.query),
+                ])
+
+            # TODO ask BBB, is "role":....... general usage
 
             state.context_window.append(ToolMessage(
                 content=tool_result,
@@ -127,14 +126,13 @@ class VectorPressAgent:
             ))
         return state
 
-    def tavily_web_search(self, validation: TavilySearch) -> list[str]:   #TODO check both method's return types (debug)
+    def tavily_web_search(self, validation: TavilySearch) -> list[str]:
         """Web Search Tool"""
-        print(f"validation : {validation}")
         return self.tavily_search_client.search(validation)
 
     def search_guardian_articles(self, validation: GuardianSearchRequest) -> list[str]:
         """News Retrieve Tool"""
-        return self.guardian_client.search_articles(validation) #look for what shape is returns and set it in signature
+        return self.guardian_client.search_articles(validation)
 
     def _build_graph(self):
         """Build and return the LangGraph pipeline (internal method)."""
@@ -188,11 +186,11 @@ def should_continue(state: AgentState):
 def main():
 
 
-    config = ModelConfig(model="qwen3:8b", model_provider_url=settings.OLLAMA_HOST, reasoning=True)
+    config = ModelConfig(model="llama3.2:3b", model_provider_url=settings.OLLAMA_HOST)
     llm = config.get_llm()
     agent = VectorPressAgent(llm)
 
-    agent.ask("Can you fetch latest news about Ukraine and Russia war?")
+    agent.ask("Who is the best football player in the world?")
     #can you multiple 15 and 764 by calling tools?
     #Who is Cristiano Ronaldo?
     #Can you fetch 200 articles about Ukraine and Russia war?
