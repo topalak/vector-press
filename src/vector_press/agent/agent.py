@@ -1,4 +1,4 @@
-from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage, AIMessage
+from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
 from langgraph.graph import StateGraph, START, END
 from src.vector_press.agent.news_api_client import GuardianAPIClient
 from src.vector_press.agent.web_search_client import TavilyWebSearchClient
@@ -61,6 +61,7 @@ Instructions for pruning:
 
 Return the pruned content in a clear, concise format that maintains readability while focusing solely on what's needed to answer the user's request."""
 
+#TODO add response format for make it more reliable, because I have changed the model from llama3.2:3b to qwen3:8b output format is changed totally
 class VectorPressAgent:
     """Handles Agent's processing and response generation"""
 
@@ -78,7 +79,7 @@ class VectorPressAgent:
         self.state: AgentState = AgentState(  #check is there tools_call in default llm
             context_window=[SystemMessage(content=INSTRUCTIONS)],
             query="",
-            tool_messages=None
+           # pruned_message=None
         )
         self.app = self._build_graph()
 
@@ -95,35 +96,60 @@ class VectorPressAgent:
 
     def tools_call(self, state: AgentState) -> AgentState:
         """Execute tool calls and add results as ToolMessages"""
+
+        raw_tool_result = ""  # TODO ask it to BBB, im getting error if i remove that variable
+
         for tool_call in state.context_window[-1].tool_calls:
             tool_name = tool_call["name"]
             args = tool_call.get("args", {})
 
-            tool_result = ""  #TODO ask it to BBB, im getting error if i remove that variable
-
             match tool_name:
                 case "GuardianSearchRequest":
-                    tool_result = self.search_guardian_articles(GuardianSearchRequest(**args))
+                    try:
+                        raw_tool_result = self.search_guardian_articles(GuardianSearchRequest(**args))
+                    except Exception as e:
+                        print(f"Guardian API error: {str(e)}")
+                        raise e
+                    #TODO you need to search error types to understand what kind of errors for tool calls
                 case "TavilySearch":
-                    tool_result = self.tavily_web_search(TavilySearch(**args))
+                    try:
+                        raw_tool_result = self.tavily_web_search(TavilySearch(**args))
+                    except Exception as e:
+                        print(f"Tavily API error: {str(e)}")
+                        raise e
                 case _:
-                    tool_result = f"Unknown tool: {tool_name}"
+                    raw_tool_result = f"Unknown tool: {tool_name}"
 
-            tool_result = '\n'.join(tool_result)
+            raw_tool_result = '\n'.join(raw_tool_result) #ACTUALLY THAT'S UNNECESSARY, BECAUSE BELOW APPROACH HANDLES ITSELF
 
-            if len(tool_result) > 0:
-                tool_result = self.pruning_llm.invoke([
-                SystemMessage(content=tool_pruning_prompt.format(user_request=state.query)),  # tool_pruning_prompt likely contains a placeholder like {user_request} that needs to be filled in tool_pruning_prompt1
-                HumanMessage(content=state.query),
+            if len(raw_tool_result) > 0:
+                #TODO ask BBB how to monitor what pruning_llm takes, I want to both approaches behaviour
+               # '''
+                pruned_tool_result = self.pruning_llm.invoke([
+                    {"role": "system", "content": tool_pruning_prompt.format(user_request=state.query), },
+                    {"role": "user", "content": raw_tool_result},
                 ])
+                #'''
 
-            # TODO ask BBB, is "role":....... general usage
+                #below approach has a problem, probably about its tool_pruning_prompt
+                '''
+                tool_result = self.pruning_llm.invoke([
+                SystemMessage(content=tool_pruning_prompt.format(user_request=state.query)),
+                HumanMessage(content=tool_result),
+                ])
+                '''
 
-            state.context_window.append(ToolMessage(
-                content=tool_result,
-                name=tool_name,
-                tool_call_id=tool_call["id"]
-            ))
+                state.context_window.append(ToolMessage(
+                    content=pruned_tool_result.content,
+                    name=tool_name,
+                    tool_call_id=tool_call["id"]
+                ))
+
+            else:
+                state.context_window.append(ToolMessage(content=f"Nothing retrieved from tool id: {tool_call['id']}",
+                                                        name=tool_name,
+                                                        tool_call_id=tool_call["id"]))
+
         return state
 
     def tavily_web_search(self, validation: TavilySearch) -> list[str]:
@@ -186,11 +212,11 @@ def should_continue(state: AgentState):
 def main():
 
 
-    config = ModelConfig(model="llama3.2:3b", model_provider_url=settings.OLLAMA_HOST)
+    config = ModelConfig(model="qwen3:8b", model_provider_url=settings.OLLAMA_HOST, reasoning=False)
     llm = config.get_llm()
     agent = VectorPressAgent(llm)
 
-    agent.ask("Who is the best football player in the world?")
+    agent.ask("Can you fetch latest news about Ukraine and Russia?")
     #can you multiple 15 and 764 by calling tools?
     #Who is Cristiano Ronaldo?
     #Can you fetch 200 articles about Ukraine and Russia war?

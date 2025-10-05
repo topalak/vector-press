@@ -1856,14 +1856,11 @@ source = { virtual = "." }
 dependencies = [
     { name = "ai-common" },
     { name = "langgraph" },
-    { name = "ollama" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
-    { name = "python-dotenv" },
     { name = "requests" },
     { name = "streamlit" },
     { name = "supabase" },
-    { name = "tavily-python" },
     { name = "torch" },
 ]
 
@@ -1871,14 +1868,11 @@ dependencies = [
 requires-dist = [
     { name = "ai-common", git = "https://github.com/bgunyel/ai-common.git?rev=main" },
     { name = "langgraph", specifier = ">=0.6.0" },
-    { name = "ollama", specifier = ">=0.5.3" },
     { name = "pydantic", specifier = ">=2.11.7" },
     { name = "pydantic-settings", specifier = ">=2.10.1" },
-    { name = "python-dotenv", specifier = ">=1.1.1" },
     { name = "requests", specifier = ">=2.32.4" },
     { name = "streamlit", specifier = ">=1.29.0" },
     { name = "supabase", specifier = ">=2.18.1" },
-    { name = "tavily-python", specifier = ">=0.7.12" },
     { name = "torch", specifier = ">=2.8.0" },
 ]
 
