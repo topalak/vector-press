@@ -6,7 +6,11 @@ from src.vector_press.agent.tools_validation import TavilySearch, GuardianSearch
 from src.vector_press.model_config import ModelConfig
 from config import settings
 
+import logging
+
 from src.vector_press.agent.state import AgentState
+
+logger = logging.getLogger(__name__)
 
 pruning_llm_config = ModelConfig(model="llama3.2:3b", model_provider_url=settings.OLLAMA_HOST)
 
@@ -108,16 +112,28 @@ class VectorPressAgent:
                     try:
                         raw_tool_result = self.search_guardian_articles(GuardianSearchRequest(**args))
                     except Exception as e:
-                        print(f"Guardian API error: {str(e)}")
-                        raise e
-                    #TODO you need to search error types to understand what kind of errors for tool calls
+                        logger.warning(f"Guardian API error: {e}")
+                        #TODO
+                        #try:
+                            #bbc search
+                        #except Exception as e:
+                            #logger.error(f"Both Guardian and BBC failed: {e}")
+                            #state.context_window.append(ToolMessage(
+                           # content="News sources unavailable",
+                           # name=tool_name,
+                            #tool_call_id=tool_call["id"]
+                            #))
+                            #continue
+                    #TODO you need to search error types to understand what kind of errors for tool calls. I need to update except block with those specific errors
                 case "TavilySearch":
                     try:
                         raw_tool_result = self.tavily_web_search(TavilySearch(**args))
                     except Exception as e:
-                        print(f"Tavily API error: {str(e)}")
-                        raise e
+                        logger.warning(f"Tavily API error: {e}")
+                        #TODO same try except block like above, use it linkup as alternative
+                        continue
                 case _:
+                    logger.warning(f"Unknown tool requested: {tool_name}")
                     raw_tool_result = f"Unknown tool: {tool_name}"
 
             raw_tool_result = '\n'.join(raw_tool_result) #ACTUALLY THAT'S UNNECESSARY, BECAUSE BELOW APPROACH HANDLES ITSELF
@@ -144,11 +160,12 @@ class VectorPressAgent:
                     name=tool_name,
                     tool_call_id=tool_call["id"]
                 ))
-
+            '''
             else:
                 state.context_window.append(ToolMessage(content=f"Nothing retrieved from tool id: {tool_call['id']}",
                                                         name=tool_name,
                                                         tool_call_id=tool_call["id"]))
+                                                        '''
 
         return state
 
@@ -211,6 +228,11 @@ def should_continue(state: AgentState):
 
 def main():
 
+    # Configure logging to show in terminal
+    logging.basicConfig(
+        level=logging.INFO,  # Show INFO, WARNING, ERROR
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
 
     config = ModelConfig(model="qwen3:8b", model_provider_url=settings.OLLAMA_HOST, reasoning=False)
     llm = config.get_llm()
