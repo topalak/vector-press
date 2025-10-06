@@ -87,7 +87,7 @@ class VectorPressAgent:
         )
         self.app = self._build_graph()
 
-    def llm_call(self, state: AgentState) -> AgentState:
+    def _llm_call(self, state: AgentState) -> AgentState:
         """LLM call that handles both initial user input and continuation after tools"""
         user_input = state.query
 
@@ -98,7 +98,7 @@ class VectorPressAgent:
         state.context_window.append(response)
         return state
 
-    def tools_call(self, state: AgentState) -> AgentState:
+    def _tools_call(self, state: AgentState) -> AgentState:
         """Execute tool calls and add results as ToolMessages"""
 
         raw_tool_result = ""  # TODO ask it to BBB, im getting error if i remove that variable
@@ -110,7 +110,7 @@ class VectorPressAgent:
             match tool_name:
                 case "GuardianSearchRequest":
                     try:
-                        raw_tool_result = self.search_guardian_articles(GuardianSearchRequest(**args))
+                        raw_tool_result = self._search_guardian_articles(GuardianSearchRequest(**args))
                     except Exception as e:
                         logger.warning(f"Guardian API error: {e}")
                         #TODO
@@ -127,7 +127,7 @@ class VectorPressAgent:
                     #TODO you need to search error types to understand what kind of errors for tool calls. I need to update except block with those specific errors
                 case "TavilySearch":
                     try:
-                        raw_tool_result = self.tavily_web_search(TavilySearch(**args))
+                        raw_tool_result = self._tavily_web_search(TavilySearch(**args))
                     except Exception as e:
                         logger.warning(f"Tavily API error: {e}")
                         #TODO same try except block like above, use it linkup as alternative
@@ -169,11 +169,11 @@ class VectorPressAgent:
 
         return state
 
-    def tavily_web_search(self, validation: TavilySearch) -> list[str]:
+    def _tavily_web_search(self, validation: TavilySearch) -> list[str]:
         """Web Search Tool"""
         return self.tavily_search_client.search(validation)
 
-    def search_guardian_articles(self, validation: GuardianSearchRequest) -> list[str]:
+    def _search_guardian_articles(self, validation: GuardianSearchRequest) -> list[str]:
         """News Retrieve Tool"""
         return self.guardian_client.search_articles(validation)
 
@@ -181,13 +181,13 @@ class VectorPressAgent:
         """Build and return the LangGraph pipeline (internal method)."""
         graph = StateGraph(AgentState)
 
-        graph.add_node('llm_call', self.llm_call)
-        graph.add_node('tools_call', self.tools_call)
+        graph.add_node('llm_call', self._llm_call)
+        graph.add_node('tools_call', self._tools_call)
 
         graph.add_edge(START, 'llm_call')
         graph.add_conditional_edges(
             source='llm_call',
-            path=should_continue,
+            path=_should_continue,
             path_map={'continue': 'tools_call', 'end': END}
         )
         graph.add_edge('tools_call', 'llm_call')
@@ -218,7 +218,7 @@ class VectorPressAgent:
 
 
 
-def should_continue(state: AgentState):
+def _should_continue(state: AgentState):
     """Determine whether to continue with tool calls or end"""
     last_message = state.context_window[-1]
     if last_message.tool_calls:
