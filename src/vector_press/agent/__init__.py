@@ -1,5 +1,5 @@
 # Main agent classes
-from src.vector_press.agent.agent import VectorPressAgent, AgentState, should_continue
+from src.vector_press.agent.agent import VectorPressAgent, AgentState, _should_continue
 
 # API clients
 from .news_api_client import GuardianAPIClient, BaseNewsAPIClient, extract_article_text
@@ -12,7 +12,7 @@ __all__ = [
     # Agent classes
     "VectorPressAgent",
     "AgentState",
-    "should_continue",
+    "_should_continue",
 
     # API clients
     "GuardianAPIClient",

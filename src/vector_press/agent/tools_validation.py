@@ -2,9 +2,9 @@ from pydantic import BaseModel, Field
 
 class TavilySearch(BaseModel):
     """For general web searches - use this for GENERAL searches and topics like technology guides, finance information, etc."""
-#TODO maybe we can handle it with literal
+#Literal is about VALUE constraints, not TYPE coercion, we can not solve it with literal
     query: str = Field(..., min_length=1, max_length=500, description="Write the best web search keywords depending user's input ")
-    max_results: int = Field(default=5, ge=1, le=20, description="Max results to return")  #ge = "greater than or equal to" (≥)  and   le = "less than or equal to" (≤)
+    max_results: int = Field(default=2, ge=1, le=20, description="Max results to return")  #ge = "greater than or equal to" (≥)  and   le = "less than or equal to" (≤)
     topic: str = Field(default='general',exclude='news', description="Search topic, you can select one of those 'general', 'finance'")
 
 class GuardianSearchRequest(BaseModel):

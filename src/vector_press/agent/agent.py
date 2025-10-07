@@ -7,12 +7,13 @@ from src.vector_press.model_config import ModelConfig
 from config import settings
 
 import logging
+import time
 
 from src.vector_press.agent.state import AgentState
 
 logger = logging.getLogger(__name__)
 
-pruning_llm_config = ModelConfig(model="llama3.2:3b", model_provider_url=settings.OLLAMA_HOST)
+pruning_llm_config = ModelConfig(model="qwen3:0.6b", model_provider_url=settings.OLLAMA_HOST)
 
 INSTRUCTIONS = """You are a smart and helpful news assistant. Your name is Big Brother.
 
@@ -66,6 +67,9 @@ Instructions for pruning:
 Return the pruned content in a clear, concise format that maintains readability while focusing solely on what's needed to answer the user's request."""
 
 #TODO add response format for make it more reliable, because I have changed the model from llama3.2:3b to qwen3:8b output format is changed totally
+# response_format: This adds a node before END. This will call and LLM.with_structured_output and the output will be formatted to
+# match the given schema and returned in the 'structured_response' state key.
+
 class VectorPressAgent:
     """Handles Agent's processing and response generation"""
 
@@ -94,7 +98,13 @@ class VectorPressAgent:
         if not isinstance(state.context_window[-1], ToolMessage):   #IF (last message is NOT a ToolMessage)
             state.context_window.append(HumanMessage(content=user_input))
 
+        start_time = time.time()
         response = self.structured_llm.invoke(state.context_window)  #state AIMessage
+        end_time = time.time()
+        elapsed_time = end_time - start_time
+
+        logger.info(f"LLM response generation took {elapsed_time:.2f} seconds")
+
         state.context_window.append(response)
         return state
 
@@ -160,6 +170,7 @@ class VectorPressAgent:
                     name=tool_name,
                     tool_call_id=tool_call["id"]
                 ))
+                print('ossururk')
             '''
             else:
                 state.context_window.append(ToolMessage(content=f"Nothing retrieved from tool id: {tool_call['id']}",
@@ -234,11 +245,11 @@ def main():
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     )
 
-    config = ModelConfig(model="qwen3:8b", model_provider_url=settings.OLLAMA_HOST, reasoning=False)
+    config = ModelConfig(model="qwen3:1.7b", model_provider_url=settings.OLLAMA_HOST, reasoning=False)
     llm = config.get_llm()
     agent = VectorPressAgent(llm)
 
-    agent.ask("Can you fetch latest news about Ukraine and Russia?")
+    agent.ask("Can you fetch latest news about Ukraine and Russia war?")
     #can you multiple 15 and 764 by calling tools?
     #Who is Cristiano Ronaldo?
     #Can you fetch 200 articles about Ukraine and Russia war?
