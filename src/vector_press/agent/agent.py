@@ -18,14 +18,15 @@ pruning_llm_config = ModelConfig(model="qwen3:0.6b", model_provider_url=settings
 INSTRUCTIONS = """You are a smart and helpful news assistant. Your name is Big Brother.
 
 <task>
-Your job is to use tools to perform user's commands and find information to answer user's questions about news and current events.
+Your job is use tools to perform user's commands and find information to answer user's questions.
 You can use any of the tools provided to you.
 You can call these tools in series or in parallel, your functionality is conducted in a tool-calling loop.
 </task>
 
 <available_tools>
-1. **search_guardian_articles**: For NEWS-related searches. If there is 'news' word in query you probably need to call search_guardian_articles.
-2. **tavily_web_search**: For general web searches - use this for GENERAL searches and topics like technology guides, finance information, etc.
+1. **GuardianSearchRequest**: For NEWS-related searches. If user wants to learn something NEWS related politics, business, sport, tech, finance, you need to use GuardianSearchRequest tool. If user's 
+    sentence has "news' or related word you MUST use this tool.
+2. **TavilySearch**: For general web searches - use this for GENERAL searches and topics like technology guides, finance information, etc.
 </available_tools>
 
 <tool_guideline>
@@ -43,6 +44,38 @@ You can call these tools in series or in parallel, your functionality is conduct
             "additionalProperties": false
           }
     </example>
+2. You MUST be careful while generating data types. You MUST set data types as same as which mentioned in tool_validation.py file. Here is an example:
+    <example>
+         {
+          "properties": {
+            "query": {
+              "title": "Query",
+              "type": "string"
+            },
+            "section": {
+              "title": "Section",
+              "type": "string"
+            },
+            "page_size": {
+              "title": "Page Size",
+              "type": "integer"
+            },
+            "max_pages": {
+              "title": "Max Pages",
+              "type": "integer"
+            },
+            "order_by": {
+              "title": "Order By",
+              "type": "string"
+            }
+          },
+          "required": [
+            "query"
+          ],
+          "title": "GuardianSearchRequest",
+          "type": "object"
+        }
+    </example>
 </tool_guideline>
 
 <pay_attention>
@@ -50,6 +83,7 @@ Each response should ONLY use context that directly relates to the user's CURREN
 from previous unrelated queries unless user wants it.
 </pay_attention>
 """
+
 tool_pruning_prompt = """You are an expert at extracting relevant information from documents.
 
 Your task: Analyze the provided document and extract ONLY the information that directly answers or supports the user's specific request. Remove all irrelevant content.
@@ -102,7 +136,6 @@ class VectorPressAgent:
         response = self.structured_llm.invoke(state.context_window)  #state AIMessage
         end_time = time.time()
         elapsed_time = end_time - start_time
-
         logger.info(f"LLM response generation took {elapsed_time:.2f} seconds")
 
         state.context_window.append(response)
@@ -150,33 +183,20 @@ class VectorPressAgent:
 
             if len(raw_tool_result) > 0:
                 #TODO ask BBB how to monitor what pruning_llm takes, I want to both approaches behaviour
-               # '''
+                start_time = time.time()
                 pruned_tool_result = self.pruning_llm.invoke([
                     {"role": "system", "content": tool_pruning_prompt.format(user_request=state.query), },
                     {"role": "user", "content": raw_tool_result},
                 ])
-                #'''
-
-                #below approach has a problem, probably about its tool_pruning_prompt
-                '''
-                tool_result = self.pruning_llm.invoke([
-                SystemMessage(content=tool_pruning_prompt.format(user_request=state.query)),
-                HumanMessage(content=tool_result),
-                ])
-                '''
+                end_time = time.time()
+                elapsed_time = end_time - start_time
+                logger.info(f"Tool pruning took {elapsed_time:.2f} seconds")
 
                 state.context_window.append(ToolMessage(
                     content=pruned_tool_result.content,
                     name=tool_name,
                     tool_call_id=tool_call["id"]
                 ))
-                print('ossururk')
-            '''
-            else:
-                state.context_window.append(ToolMessage(content=f"Nothing retrieved from tool id: {tool_call['id']}",
-                                                        name=tool_name,
-                                                        tool_call_id=tool_call["id"]))
-                                                        '''
 
         return state
 
@@ -249,7 +269,7 @@ def main():
     llm = config.get_llm()
     agent = VectorPressAgent(llm)
 
-    agent.ask("Can you fetch latest news about Ukraine and Russia war?")
+    agent.ask("i want to buy mac mini m4, what do you think? should i buy it? ")
     #can you multiple 15 and 764 by calling tools?
     #Who is Cristiano Ronaldo?
     #Can you fetch 200 articles about Ukraine and Russia war?

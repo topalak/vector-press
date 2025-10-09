@@ -10,6 +10,7 @@ requires-python = ">=3.13"
 dependencies = [
     "ai-common @ git+https://github.com/bgunyel/ai-common.git@main",
     "langgraph>=0.6.0",
+    "ollama>=0.5.4",
     "pydantic>=2.11.7",
     "pydantic-settings>=2.10.1",
     "requests>=2.32.4",
