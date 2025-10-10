@@ -269,10 +269,11 @@ def main():
     llm = config.get_llm()
     agent = VectorPressAgent(llm)
 
-    agent.ask("i want to buy mac mini m4, what do you think? should i buy it? ")
+    agent.ask("Can you fetch news about Ukraine and Russia war?")
     #can you multiple 15 and 764 by calling tools?
     #Who is Cristiano Ronaldo?
     #Can you fetch 200 articles about Ukraine and Russia war?
+    #I want to buy Imac mini m4, what do you think? should I buy it?
     #Can you fetch latest news about Ukraine and Russia war?
 
 if __name__ == '__main__':

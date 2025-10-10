@@ -10,7 +10,7 @@ from src.vector_press.agent.tools_validation import GuardianSearchRequest
 from config import settings
 
 # TODO if we develop mcp server it will save us from typing different api formats for every news sources
-def extract_article_text(article_data: Dict) -> Dict | None:
+def _extract_article_text(article_data: Dict) -> Dict | None:
     """
     Extract and clean text from Guardian API article response
 
@@ -122,64 +122,29 @@ class GuardianAPIClient(BaseNewsAPIClient):
         Args:
             validation: GuardianSearchRequest object with search parameters
         """
-        # Extract parameters from validation object
-        query = validation.query
-        section = validation.section
-        page_size = validation.page_size
-        from_date = getattr(validation, 'from_date', None)
-        show_fields = getattr(validation, 'show_fields', "all")
-        order_by = validation.order_by
-        max_pages = validation.max_pages
 
-    #    print(f"\n📡 [DEBUG] Starting search for {max_pages} page(s)...")
-
-        # Build API endpoint
         endpoint = f"{self._base_url}/search"
 
-        # Build base parameters
-        base_params = {
-            "api-key": self._api_key
-        }
-
-        # Add optional parameters
-        if query:
-            base_params["q"] = query  #here is very important guardian expects query as 'q' we set it as 'q' here.
-
-        if section:
-            base_params["section"] = section
-
-        if from_date:
-            base_params["from-date"] = from_date
-
-        if page_size:
-            base_params["page-size"] = page_size
-
-        if show_fields:
-            base_params["show-fields"] = show_fields
-
-        if order_by:
-            base_params["order-by"] = order_by
-
-        if max_pages:
-            base_params["max-pages"] = max_pages
+        base_params = validation.model_dump()
+        base_params["q"] = base_params.pop("query")
+        base_params["api-key"] = self._api_key
 
         # Collect articles from all pages
         all_extracted_articles = []
         total_start_time = time.time()
-        page = 0  # Initialize page counter
 
         try:
-            for page in range(1, max_pages + 1):
-      #          print(f"\n📄 [DEBUG] Fetching page {page}/{max_pages}...")
+            for page in range(1, base_params['max_pages'] + 1):
+                #print(f"\n📄 [DEBUG] Fetching page {page}/{max_pages}...")
 
                 # Add page parameter
-                params = {**base_params, "page": page}
+                params = {**base_params, "page": page}  #"**base_params" unpacks the dict
 
-                page_start_time = time.time()
+                #page_start_time = time.time()
                 response = requests.get(endpoint, params=params, timeout=30)
-                page_end_time = time.time()
+                #page_end_time = time.time()
 
-  #              print(f"[DEBUG] Page {page} request took {page_end_time - page_start_time:.2f} seconds")
+                #print(f"[DEBUG] Page {page} request took {page_end_time - page_start_time:.2f} seconds")
 
                 if response.status_code == 200:
                     api_data = response.json()
@@ -189,19 +154,19 @@ class GuardianAPIClient(BaseNewsAPIClient):
                     if not articles_data:
                         print(f"[DEBUG] No articles found on page {page}. Stopping pagination.")
                         break
-              #      print(f"[DEBUG] Found {len(articles_data)} articles on page {page}")
+                    #print(f"[DEBUG] Found {len(articles_data)} articles on page {page}")
 
                     if not articles_data:
                         print(f"[DEBUG] All articles on page {page} already exist. Skipping to next page.")
                         continue
 
-                  #  print(
-                  #      f"[DEBUG] Processing {len(articles_data)} new articles from page {page} (after duplicate check)")
+                    #print(
+                        #f"[DEBUG] Processing {len(articles_data)} new articles from page {page} (after duplicate check)")
 
                     # Process each article using the extraction function
                     for i, article_data in enumerate(articles_data):
-                    #    print(f"[DEBUG] Processing article {i + 1}/{len(articles_data)} from page {page}")
-                        extracted = extract_article_text(article_data)
+                        #print(f"[DEBUG] Processing article {i + 1}/{len(articles_data)} from page {page}")
+                        extracted = _extract_article_text(article_data)
                         if extracted:
                             all_extracted_articles.append(extracted)
                         else:
@@ -217,10 +182,10 @@ class GuardianAPIClient(BaseNewsAPIClient):
             total_end_time = time.time()
             total_time = total_end_time - total_start_time
 
-          #  print(f"\n🎉 [DEBUG] Pagination completed!")
-          #  print(f"📊 [DEBUG] Total pages fetched: {min(page, max_pages)}")
-           # print(f"📊 [DEBUG] Total articles extracted: {len(all_extracted_articles)}")
-           # print(f"📊 [DEBUG] Total time: {total_time:.2f} seconds")
+            #print(f"\n🎉 [DEBUG] Pagination completed!")
+            #print(f"📊 [DEBUG] Total pages fetched: {min(page, max_pages)}")
+            #print(f"📊 [DEBUG] Total articles extracted: {len(all_extracted_articles)}")
+            #print(f"📊 [DEBUG] Total time: {total_time:.2f} seconds")
 
             return all_extracted_articles if all_extracted_articles else None
 
