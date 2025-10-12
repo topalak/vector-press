@@ -1,8 +1,15 @@
 from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
 from langgraph.graph import StateGraph, START, END
+
 from src.vector_press.agent.news_api_client import GuardianAPIClient
 from src.vector_press.agent.web_search_client import TavilyWebSearchClient
+#from src.vector_press.agent.rss_client import TechnologyRSSClient
+
+
+
 from src.vector_press.agent.tools_validation import TavilySearch, GuardianSearchRequest
+
+
 from src.vector_press.model_config import ModelConfig
 from config import settings
 
@@ -14,6 +21,7 @@ from src.vector_press.agent.state import AgentState
 logger = logging.getLogger(__name__)
 
 pruning_llm_config = ModelConfig(model="qwen3:0.6b", model_provider_url=settings.OLLAMA_HOST)
+embedding_model_config = ModelConfig(model='all-minilm:33m', model_provider_url=settings.OLLAMA_HOST)
 
 INSTRUCTIONS = """You are a smart and helpful news assistant. Your name is Big Brother.
 
@@ -110,10 +118,12 @@ class VectorPressAgent:
     def __init__(self, llm):
         """Initialize agent with model and build graph."""
         self.pruning_llm = pruning_llm_config.get_llm()
+        self.embedding_model = embedding_model_config.get_embedding()
         self.llm = llm
 
         self.tavily_search_client = TavilyWebSearchClient()
         self.guardian_client = GuardianAPIClient()
+  #      self.rss_client = TechnologyRSSClient(self.embedding_model)  # we are injecting the embedding model here
 
         tools = [TavilySearch, GuardianSearchRequest]
         self.structured_llm = self.llm.bind_tools(tools=tools)
@@ -124,6 +134,7 @@ class VectorPressAgent:
            # pruned_message=None
         )
         self.app = self._build_graph()
+
 
     def _llm_call(self, state: AgentState) -> AgentState:
         """LLM call that handles both initial user input and continuation after tools"""
@@ -246,6 +257,18 @@ class VectorPressAgent:
             query = input("\nYou: ").strip()
 
         return "No response generated"
+    '''
+    def is_related(self, state : AgentState ): #maybe we set it as boolean
+        # TODO maybe we can do this by embedding the result and query and
+        query = state.query
+
+
+
+        self.embedding_model =
+    '''
+
+
+
 
 
 
@@ -269,7 +292,7 @@ def main():
     llm = config.get_llm()
     agent = VectorPressAgent(llm)
 
-    agent.ask("Can you fetch news about Ukraine and Russia war?")
+    agent.ask("I want you to fetch latest news about new Mac Mini m4, I want to buy a new one?")
     #can you multiple 15 and 764 by calling tools?
     #Who is Cristiano Ronaldo?
     #Can you fetch 200 articles about Ukraine and Russia war?

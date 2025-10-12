@@ -3,7 +3,7 @@ from src.vector_press.agent.agent import VectorPressAgent, AgentState, _should_c
 
 # API clients
 from .news_api_client import GuardianAPIClient, BaseNewsAPIClient, _extract_article_text
-
+from .rss_client import TechnologyRSSClient
 # Validation models
 from .tools_validation import TavilySearch, GuardianSearchRequest
 
@@ -17,6 +17,7 @@ __all__ = [
     # API clients
     "GuardianAPIClient",
     "BaseNewsAPIClient",
+    "TechnologyRSSClient",
     #"_extract_article_text",
 
     # Validation models

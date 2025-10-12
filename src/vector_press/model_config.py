@@ -36,7 +36,11 @@ def _check_and_pull_ollama_model(model_name: str, ollama_url: str) -> None:
 def load_ollama_model(model_name: str, ollama_url: str) -> None:
     _check_and_pull_ollama_model(model_name=model_name, ollama_url=ollama_url)
     ollama_client = Client(host=ollama_url)
-    ollama_client.generate(model=model_name)  # Genera
+    try:
+        ollama_client.generate(model=model_name)
+    except Exception as e:
+        ollama_client.embed(model_name)
+
 
 
 class ModelConfig:
@@ -78,6 +82,8 @@ class ModelConfig:
 
         return OllamaEmbeddings(
             model=self.model,
+            base_url=self.model_provider_url,
+            keep_alive=2,
         )
 
 
