@@ -103,7 +103,7 @@ class BaseNewsAPIClient(ABC):   # ABC = Abstract Base Class, ABC prevents creati
         self._base_url = base_url
 
     @abstractmethod
-    def search_articles(self, validation) -> Dict:
+    def search(self, validation) -> Dict:
         pass
 
 class GuardianAPIClient(BaseNewsAPIClient):
@@ -115,7 +115,7 @@ class GuardianAPIClient(BaseNewsAPIClient):
 
         #print(f"🔧 [DEBUG] Guardian API Client initialized")
 
-    def search_articles(self, validation : GuardianSearchRequest) -> list[Dict] | None:
+    def search(self, validation : GuardianSearchRequest) -> list[Dict] | None:
         """
         Search articles using validation object.
 

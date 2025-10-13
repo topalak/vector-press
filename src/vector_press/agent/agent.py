@@ -7,8 +7,7 @@ from src.vector_press.agent.web_search_client import TavilyWebSearchClient
 
 
 
-from src.vector_press.agent.tools_validation import TavilySearch, GuardianSearchRequest
-
+from src.vector_press.agent.tools_validation import TavilySearch, GuardianSearchRequest, TechnologyRSSFeed
 
 from src.vector_press.model_config import ModelConfig
 from config import settings
@@ -123,7 +122,7 @@ class VectorPressAgent:
 
         self.tavily_search_client = TavilyWebSearchClient()
         self.guardian_client = GuardianAPIClient()
-  #      self.rss_client = TechnologyRSSClient(self.embedding_model)  # we are injecting the embedding model here
+        self.rss_client = TechnologyRSSClient(self.embedding_model)  # we are injecting the embedding model here
 
         tools = [TavilySearch, GuardianSearchRequest]
         self.structured_llm = self.llm.bind_tools(tools=tools)
@@ -217,7 +216,11 @@ class VectorPressAgent:
 
     def _search_guardian_articles(self, validation: GuardianSearchRequest) -> list[str]:
         """News Retrieve Tool"""
-        return self.guardian_client.search_articles(validation)
+        return self.guardian_client.search(validation)
+
+    def _technology_rss(self, validation: TechnologyRSSFeed) -> list[str]:
+        """Technology RSS Feed"""
+        return self.rss_client.search(validation)
 
     def _build_graph(self):
         """Build and return the LangGraph pipeline (internal method)."""
