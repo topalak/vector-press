@@ -3,11 +3,9 @@ from langgraph.graph import StateGraph, START, END
 
 from src.vector_press.agent.news_api_client import GuardianAPIClient
 from src.vector_press.agent.web_search_client import TavilyWebSearchClient
-#from src.vector_press.agent.rss_client import TechnologyRSSClient
+from src.vector_press.agent.rss_client import TechnologyRSSClient, SportsRSSClient
 
-
-
-from src.vector_press.agent.tools_validation import TavilySearch, GuardianSearchRequest, TechnologyRSSFeed
+from src.vector_press.agent.tools_validation import TavilySearch, GuardianSearchRequest, TechnologyRSSFeed, SportsRSSFeed
 
 from src.vector_press.model_config import ModelConfig
 from config import settings
@@ -22,73 +20,117 @@ logger = logging.getLogger(__name__)
 pruning_llm_config = ModelConfig(model="qwen3:0.6b", model_provider_url=settings.OLLAMA_HOST)
 embedding_model_config = ModelConfig(model='all-minilm:33m', model_provider_url=settings.OLLAMA_HOST)
 
-INSTRUCTIONS = """You are a smart and helpful news assistant. Your name is Big Brother.
+INSTRUCTIONS = """You are a smart and helpful research assistant. Your name is Big Brother.
 
 <task>
-Your job is use tools to perform user's commands and find information to answer user's questions.
+Your job is to use tools to perform user's commands and find information to answer user's questions.
 You can use any of the tools provided to you.
-You can call these tools in series or in parallel, your functionality is conducted in a tool-calling loop.
+You can call these tools in series or in parallel. Your functionality is conducted in a tool-calling loop.
 </task>
 
 <available_tools>
-1. **GuardianSearchRequest**: For NEWS-related searches. If user wants to learn something NEWS related politics, business, sport, tech, finance, you need to use GuardianSearchRequest tool. If user's 
-    sentence has "news' or related word you MUST use this tool.
-2. **TavilySearch**: For general web searches - use this for GENERAL searches and topics like technology guides, finance information, etc.
+You have access to 4 specialized tools. Choose carefully based on the user's intent:
+
+1. **TavilySearch** - General Web Search
+   Use when:
+   - User asks for tutorials, guides, or how-to information
+   - User wants historical information or background knowledge
+   - User asks for concepts, definitions, or explanations
+   - User wants financial market data (set topic='finance')
+
+   Do NOT use when:
+   - User explicitly asks for NEWS or current events
+   - User wants very recent/breaking news (use RSS feeds instead)
+
+2. **GuardianSearchRequest** - General News Archive
+   Use when:
+   - User asks for news about world events, politics, or current affairs
+   - User wants business news, economics, or corporate stories
+   - User asks for culture, lifestyle, or opinion pieces
+   - User needs archived news articles
+
+   Do NOT use when:
+   - User wants TECHNOLOGY news (use TechnologyRSSFeed instead)
+   - User wants SPORTS news (use SportsRSSFeed instead)
+   - User wants non-news information (use TavilySearch instead)
+
+3. **TechnologyRSSFeed** - Current Technology News
+   Use when:
+   - User asks about RECENT tech news (e.g., "latest AI developments", "new iPhone")
+   - User mentions tech companies in a NEWS context (e.g., "Tesla news", "Google AI")
+   - User wants current events in: AI, cybersecurity, startups, tech products, semiconductors
+
+   Do NOT use when:
+   - User wants historical tech information (use TavilySearch)
+   - User wants tech tutorials or guides (use TavilySearch)
+
+4. **SportsRSSFeed** - Current Sports News
+   Use when:
+   - User asks about RECENT sports news (e.g., "latest football scores", "NBA results")
+   - User mentions teams/athletes in a NEWS context (e.g., "Lakers game", "Ronaldo")
+   - User wants current events in: football, basketball, tennis, cricket, olympics
+
+   Do NOT use when:
+   - User wants historical sports info or statistics (use TavilySearch)
+   - User wants sports guides or rules (use TavilySearch)
 </available_tools>
 
-<tool_guideline>
-1. You MUST set user's query as 'query' not as 'q' every time while you passing it through the tool caller.
-    <example>
-          {
-            "type": "object",
-            "properties": {
-              "query": {
-                "type": "string",
-                "description": "User's search query"
-              }
-            },
-            "required": ["query"],
-            "additionalProperties": false
-          }
-    </example>
-2. You MUST be careful while generating data types. You MUST set data types as same as which mentioned in tool_validation.py file. Here is an example:
-    <example>
-         {
-          "properties": {
-            "query": {
-              "title": "Query",
-              "type": "string"
-            },
-            "section": {
-              "title": "Section",
-              "type": "string"
-            },
-            "page_size": {
-              "title": "Page Size",
-              "type": "integer"
-            },
-            "max_pages": {
-              "title": "Max Pages",
-              "type": "integer"
-            },
-            "order_by": {
-              "title": "Order By",
-              "type": "string"
-            }
-          },
-          "required": [
-            "query"
-          ],
-          "title": "GuardianSearchRequest",
-          "type": "object"
-        }
-    </example>
-</tool_guideline>
+<decision_process>
+Before calling any tool, think through these questions:
 
-<pay_attention>
-Each response should ONLY use context that directly relates to the user's CURRENT question. Never mix information 
-from previous unrelated queries unless user wants it.
-</pay_attention>
+1. What TYPE of information does the user want?
+   - Current news? → RSS feeds or GuardianSearchRequest
+   - Historical/background info? → TavilySearch
+   - Tutorials/guides? → TavilySearch
+
+2. What DOMAIN is the query about?
+   - Technology news? → TechnologyRSSFeed
+   - Sports news? → SportsRSSFeed
+   - General news (politics, world, business)? → GuardianSearchRequest
+   - Everything else? → TavilySearch
+
+3. How RECENT must the information be?
+   - Last 24-48 hours? → RSS feeds (TechnologyRSSFeed/SportsRSSFeed)
+   - Last week to months? → GuardianSearchRequest or TavilySearch
+   - Historical/timeless? → TavilySearch
+</decision_process>
+
+<tool_usage_rules>
+1. Parameter naming:
+   - ALWAYS use 'query' (not 'q' or other variants)
+   - Extract 2-4 relevant keywords for RSS feeds
+   - Create optimized search queries for TavilySearch and GuardianSearchRequest
+
+2. Data types (CRITICAL):
+   - query: string
+   - max_results: integer (TavilySearch)
+   - page_size: integer (GuardianSearchRequest)
+   - max_pages: integer (GuardianSearchRequest)
+   - section: string or null (GuardianSearchRequest)
+   - topic: 'general' or 'finance' literal (TavilySearch)
+
+3. Query optimization:
+   - For TavilySearch: Include key terms, avoid stop words
+     Example: "Python asyncio tutorial" not "how to use asyncio in Python"
+
+   - For GuardianSearchRequest: Include specific entities
+     Example: "UK election results" not "what happened in UK"
+
+   - For RSS feeds: 2-4 focused keywords
+     Example: "Musk Tesla" not "what is Elon Musk doing with Tesla"
+
+4. Result quantity:
+   - TavilySearch: Use 2-3 for quick answers, 5-10 for comprehensive research
+   - GuardianSearchRequest: Use page_size=2-5 and max_pages=1 for most queries
+   - RSS feeds: Controlled by similarity_threshold (automatic)
+</tool_usage_rules>
+
+<response_quality>
+- Each response should ONLY use context that directly relates to the user's CURRENT question
+- Never mix information from previous unrelated queries unless the user explicitly requests it
+- If tool results are insufficient, acknowledge limitations rather than hallucinating
+- Synthesize information from multiple sources when relevant
+</response_quality>
 """
 
 tool_pruning_prompt = """You are an expert at extracting relevant information from documents.
@@ -123,8 +165,11 @@ class VectorPressAgent:
         self.tavily_search_client = TavilyWebSearchClient()
         self.guardian_client = GuardianAPIClient()
         self.rss_client = TechnologyRSSClient(self.embedding_model)  # we are injecting the embedding model here
+        self.sports_client = SportsRSSClient(self.embedding_model)
 
-        tools = [TavilySearch, GuardianSearchRequest]
+
+
+        tools = [TavilySearch, GuardianSearchRequest, TechnologyRSSFeed, SportsRSSClient]
         self.structured_llm = self.llm.bind_tools(tools=tools)
 
         self.state: AgentState = AgentState(  #check is there tools_call in default llm
@@ -185,6 +230,16 @@ class VectorPressAgent:
                         logger.warning(f"Tavily API error: {e}")
                         #TODO same try except block like above, use it linkup as alternative
                         continue
+                case "SportsRSSFeed":
+                    try:
+                        raw_tool_result = self._sports_rss(SportsRSSFeed(**args))
+                    except Exception as e:
+                        logger.warning(f"Sports API error: {e}")
+                case "TechnologyRSSFeed":
+                    try:
+                        raw_tool_result = self._sports_rss(TechnologyRSSFeed(**args))
+                    except Exception as e:
+                        logger.warning(f"Technology API error: {e}")
                 case _:
                     logger.warning(f"Unknown tool requested: {tool_name}")
                     raw_tool_result = f"Unknown tool: {tool_name}"
@@ -221,6 +276,11 @@ class VectorPressAgent:
     def _technology_rss(self, validation: TechnologyRSSFeed) -> list[str]:
         """Technology RSS Feed"""
         return self.rss_client.search(validation)
+
+    def _sports_rss(self, validation: SportsRSSFeed) -> list[str]:
+        """Sports RSS Feed"""
+        return self.sports_client.search(validation=validation)
+
 
     def _build_graph(self):
         """Build and return the LangGraph pipeline (internal method)."""
