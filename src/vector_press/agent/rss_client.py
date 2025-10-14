@@ -5,6 +5,8 @@ from typing import List, Dict
 
 from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
+import requests
+from bs4 import BeautifulSoup
 
 from src.vector_press.agent.tools_validation import TechnologyRSSFeed
 
@@ -66,44 +68,99 @@ class BaseRSSClient(ABC):
         '''
           return filtered_indices[sorted_order], filtered_scores[sorted_order]
           return (filtered_indices[sorted_order], filtered_scores[sorted_order])  These are same, returns tuple
-          if we define  best_matches = self._cosine_similarity(entries=entries,query=query)  it returns tuple 
+          if we define  best_matches = self._cosine_similarity(entries=entries,query=query)  it returns tuple
         '''
         return filtered_indices[sorted_order], filtered_scores[sorted_order]
 
-    def _search(self, feed_urls: list[str], validation : TechnologyRSSFeed): # -> List[Dict]
+    @staticmethod
+    def _fetch_article_content(url: str) -> str:
+        """
+        Fetch full article content from URL.
+
+        Args:
+            url: Article URL to fetch
+
+        Returns:
+            Full article text content, empty string if fetching fails
+
+        Raises:
+            RequestException: If HTTP request fails
+        """
+        try:
+            response = requests.get(url, timeout=10, headers={
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+                              'AppleWebKit/537.36'
+            })
+            response.raise_for_status()
+
+            soup = BeautifulSoup(response.content, 'html.parser')
+
+            # Remove script and style elements
+            for script in soup(["script", "style"]):
+                script.decompose()
+
+            # Try to find main content area
+            article = (
+                soup.find('article') or
+                soup.find('main') or
+                soup.find('div', class_='content') or
+                soup.find('div', class_='article')
+            )
+
+            if article:
+                text = article.get_text(separator=' ', strip=True)
+            else:
+                text = soup.get_text(separator=' ', strip=True)
+
+            return text
+
+        except requests.RequestException as e:
+            logger.warning(f"Failed to fetch article from {url}: {e}")
+            return ""
+
+    def _search(self, feed_urls: list[str], validation: TechnologyRSSFeed) -> list[str]:
+        """
+        Search RSS feeds and return full article contents above similarity threshold.
+
+        Args:
+            feed_urls: List of RSS feed URLs to search
+            validation: Validated RSS feed parameters containing the query
+
+        Returns:
+            List of full article text contents for items above threshold
+        """
         all_entries = self._fetch_feed(feed_urls)
         query, entries = self._embed(all_entries=all_entries, validation=validation)
-        filtered_indices, filtered_scores = self._cosine_similarity(entries=entries,query=query)
+        filtered_indices, filtered_scores = self._cosine_similarity(entries=entries, query=query)
 
-        results = []
+        article_contents = []
+
         for position, score in zip(filtered_indices, filtered_scores):
             entry = all_entries[position]
-            print(position)# Direct lookup by list position!
-            results.append({
-                'title_and_summary': entry['title_and_summary'],
-                'link': entry['link'],
-                'source': entry['source'],
-                'similarity_score': float(score)
-            })
-            '''
-              zip
-              filtered_indices = [0, 3, 7, 12]
-              filtered_scores = [0.95, 0.87, 0.82, 0.76]
 
-              # zip(filtered_indices, filtered_scores) creates:
-              # [(0, 0.95), (3, 0.87), (7, 0.82), (12, 0.76)
-            '''
-        print(results)
-        return results
+            # Fetch full article content from URL
+            full_content = self._fetch_article_content(entry['link'])
+
+            if full_content:
+                article_contents.append(full_content)
+                logger.info(f"Successfully fetched article from {entry['link']}")
+            else:
+                logger.warning(f"Skipping article due to fetch failure: {entry['link']}")
+
+        logger.info(
+            f"Retrieved {len(article_contents)} articles out of "
+            f"{len(filtered_indices)} matches above threshold"
+        )
+
+        return article_contents
 
 class TechnologyRSSClient(BaseRSSClient):
     """Technology based RSS client"""
     #validation_instance = TechnologyRSSFeed(query='Elon musk')
 
-    def __init__(self, embedding_model, similarity_threshold: float = 0.2, ):
+    def __init__(self, embedding_model, similarity_threshold: float = 0.35, ):
         super().__init__(similarity_threshold=similarity_threshold, embedding_model=embedding_model)
         self.feed_url = [
-        "https://www.ft.com/technology?format=rss",
         "https://feeds.bbci.co.uk/news/technology/rss.xml",
     ]
     def search(self, validation: TechnologyRSSFeed) -> list[str]:

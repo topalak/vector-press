@@ -23,7 +23,7 @@ embedding_model_config = ModelConfig(model='all-minilm:33m', model_provider_url=
 INSTRUCTIONS = """You are a smart and helpful research assistant. Your name is Big Brother.
 
 <task>
-Your job is to use tools to perform user's commands and find information to answer user's questions.
+Your job is using tools to perform user's commands and find related information to answer user's questions.
 You can use any of the tools provided to you.
 You can call these tools in series or in parallel. Your functionality is conducted in a tool-calling loop.
 </task>
@@ -33,55 +33,67 @@ You have access to 4 specialized tools. Choose carefully based on the user's int
 
 1. **TavilySearch** - General Web Search
    Use when:
-   - User asks for tutorials, guides, or how-to information
-   - User wants historical information or background knowledge
-   - User asks for concepts, definitions, or explanations
-   - User wants financial market data (set topic='finance')
+   - User asks for tutorials, guides, or how-to information (e.g., "how to learn Python")
+   - User wants historical information (e.g., "history of Bitcoin", "what is quantum computing")
+   - User asks about concepts, definitions, or explanations (e.g., "explain blockchain")
+   - User wants financial market data or analysis (set topic='finance')
+   - User asks for general knowledge not requiring current news
 
    Do NOT use when:
    - User explicitly asks for NEWS or current events
    - User wants very recent/breaking news (use RSS feeds instead)
 
+   Think first: Is this a general information query or a how-to question? If yes, use this tool.
+
 2. **GuardianSearchRequest** - General News Archive
    Use when:
-   - User asks for news about world events, politics, or current affairs
+   - User asks for news about world events, politics, or general current affairs
    - User wants business news, economics, or corporate stories
    - User asks for culture, lifestyle, or opinion pieces
-   - User needs archived news articles
+   - User wants ARCHIVED news articles (Guardian has extensive archives)
 
    Do NOT use when:
-   - User wants TECHNOLOGY news (use TechnologyRSSFeed instead)
-   - User wants SPORTS news (use SportsRSSFeed instead)
+   - User wants TECHNOLOGY news (try TechnologyRSSFeed first)
+   - User wants SPORTS news (try SportsRSSFeed first)
    - User wants non-news information (use TavilySearch instead)
+
+   Think first: Is this a general news query (politics, world, business, culture)? If yes, use this tool.
 
 3. **TechnologyRSSFeed** - Current Technology News
    Use when:
-   - User asks about RECENT tech news (e.g., "latest AI developments", "new iPhone")
-   - User mentions tech companies in a NEWS context (e.g., "Tesla news", "Google AI")
+   - User asks about recent tech news (e.g., "latest AI developments", "new iPhone release")
    - User wants current events in: AI, cybersecurity, startups, tech products, semiconductors
 
    Do NOT use when:
    - User wants historical tech information (use TavilySearch)
    - User wants tech tutorials or guides (use TavilySearch)
 
+   Think first: Does the user want CURRENT TECHNOLOGY NEWS? If yes, use this tool.
+
 4. **SportsRSSFeed** - Current Sports News
    Use when:
-   - User asks about RECENT sports news (e.g., "latest football scores", "NBA results")
-   - User mentions teams/athletes in a NEWS context (e.g., "Lakers game", "Ronaldo")
-   - User wants current events in: football, basketball, tennis, cricket, olympics
+   - User asks about recent sports news (e.g., "latest football scores", "NBA results")
+   - User wants current events in: football, basketball, tennis, cricket, olympics, motorsports
 
    Do NOT use when:
    - User wants historical sports info or statistics (use TavilySearch)
    - User wants sports guides or rules (use TavilySearch)
+
+   Think first: Does the user want CURRENT SPORTS NEWS? If yes, use this tool.
+
+FALLBACK STRATEGY:
+If RSS feeds return no results or insufficient information:
+   Step 1: Try GuardianSearchRequest for news-related queries
+   Step 2: If Guardian also fails, try TavilySearch as final fallback
 </available_tools>
 
 <decision_process>
 Before calling any tool, think through these questions:
 
 1. What TYPE of information does the user want?
-   - Current news? → RSS feeds or GuardianSearchRequest
-   - Historical/background info? → TavilySearch
-   - Tutorials/guides? → TavilySearch
+   - Current news? → RSS feeds 
+   - Outdated or historical news? → GuardianSearchRequest
+   - Tutorials/guides, general information? → TavilySearch
 
 2. What DOMAIN is the query about?
    - Technology news? → TechnologyRSSFeed
@@ -94,36 +106,6 @@ Before calling any tool, think through these questions:
    - Last week to months? → GuardianSearchRequest or TavilySearch
    - Historical/timeless? → TavilySearch
 </decision_process>
-
-<tool_usage_rules>
-1. Parameter naming:
-   - ALWAYS use 'query' (not 'q' or other variants)
-   - Extract 2-4 relevant keywords for RSS feeds
-   - Create optimized search queries for TavilySearch and GuardianSearchRequest
-
-2. Data types (CRITICAL):
-   - query: string
-   - max_results: integer (TavilySearch)
-   - page_size: integer (GuardianSearchRequest)
-   - max_pages: integer (GuardianSearchRequest)
-   - section: string or null (GuardianSearchRequest)
-   - topic: 'general' or 'finance' literal (TavilySearch)
-
-3. Query optimization:
-   - For TavilySearch: Include key terms, avoid stop words
-     Example: "Python asyncio tutorial" not "how to use asyncio in Python"
-
-   - For GuardianSearchRequest: Include specific entities
-     Example: "UK election results" not "what happened in UK"
-
-   - For RSS feeds: 2-4 focused keywords
-     Example: "Musk Tesla" not "what is Elon Musk doing with Tesla"
-
-4. Result quantity:
-   - TavilySearch: Use 2-3 for quick answers, 5-10 for comprehensive research
-   - GuardianSearchRequest: Use page_size=2-5 and max_pages=1 for most queries
-   - RSS feeds: Controlled by similarity_threshold (automatic)
-</tool_usage_rules>
 
 <response_quality>
 - Each response should ONLY use context that directly relates to the user's CURRENT question
@@ -167,25 +149,17 @@ class VectorPressAgent:
         self.rss_client = TechnologyRSSClient(self.embedding_model)  # we are injecting the embedding model here
         self.sports_client = SportsRSSClient(self.embedding_model)
 
-
-
-        tools = [TavilySearch, GuardianSearchRequest, TechnologyRSSFeed, SportsRSSClient]
+        tools = [TavilySearch, GuardianSearchRequest, TechnologyRSSFeed, SportsRSSFeed]
         self.structured_llm = self.llm.bind_tools(tools=tools)
 
         self.state: AgentState = AgentState(  #check is there tools_call in default llm
             context_window=[SystemMessage(content=INSTRUCTIONS)],
             query="",
-           # pruned_message=None
         )
         self.app = self._build_graph()
 
-
     def _llm_call(self, state: AgentState) -> AgentState:
         """LLM call that handles both initial user input and continuation after tools"""
-        user_input = state.query
-
-        if not isinstance(state.context_window[-1], ToolMessage):   #IF (last message is NOT a ToolMessage)
-            state.context_window.append(HumanMessage(content=user_input))
 
         start_time = time.time()
         response = self.structured_llm.invoke(state.context_window)  #state AIMessage
@@ -237,14 +211,17 @@ class VectorPressAgent:
                         logger.warning(f"Sports API error: {e}")
                 case "TechnologyRSSFeed":
                     try:
-                        raw_tool_result = self._sports_rss(TechnologyRSSFeed(**args))
+                        raw_tool_result = self._technology_rss(TechnologyRSSFeed(**args))
                     except Exception as e:
                         logger.warning(f"Technology API error: {e}")
                 case _:
                     logger.warning(f"Unknown tool requested: {tool_name}")
                     raw_tool_result = f"Unknown tool: {tool_name}"
 
-            raw_tool_result = '\n'.join(raw_tool_result) #ACTUALLY THAT'S UNNECESSARY, BECAUSE BELOW APPROACH HANDLES ITSELF
+            if raw_tool_result:
+                raw_tool_result = '\n'.join(raw_tool_result)
+            print('ossuruk')
+
 
             if len(raw_tool_result) > 0:
                 #TODO ask BBB how to monitor what pruning_llm takes, I want to both approaches behaviour
@@ -262,6 +239,8 @@ class VectorPressAgent:
                     name=tool_name,
                     tool_call_id=tool_call["id"]
                 ))
+
+            #else:
 
         return state
 
@@ -318,22 +297,9 @@ class VectorPressAgent:
                 print(last_message.content)
 
             query = input("\nYou: ").strip()
+            self.state.context_window.append(HumanMessage(content=query))
 
         return "No response generated"
-    '''
-    def is_related(self, state : AgentState ): #maybe we set it as boolean
-        # TODO maybe we can do this by embedding the result and query and
-        query = state.query
-
-
-
-        self.embedding_model =
-    '''
-
-
-
-
-
 
 def _should_continue(state: AgentState):
     """Determine whether to continue with tool calls or end"""
@@ -355,12 +321,22 @@ def main():
     llm = config.get_llm()
     agent = VectorPressAgent(llm)
 
-    agent.ask("I want you to fetch latest news about new Mac Mini m4, I want to buy a new one?")
+    agent.ask(query="I want to macbook m3 pro, what do you suggest? is it worth to buy it")
     #can you multiple 15 and 764 by calling tools?
     #Who is Cristiano Ronaldo?
     #Can you fetch 200 articles about Ukraine and Russia war?
     #I want to buy Imac mini m4, what do you think? should I buy it?
     #Can you fetch latest news about Ukraine and Russia war?
+    #JPMorgan backs ‘America First’ push with up to $10bn investment
+    #I want you to fetch latest news about new Mac Mini m4, I want to buy a new one
+
+
+    '''
+    1- Cristiano Ronaldo
+    2- mac mini m4 launching 
+    3- NBA results
+    
+    '''
 
 if __name__ == '__main__':
     main()

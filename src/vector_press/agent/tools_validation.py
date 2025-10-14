@@ -15,42 +15,37 @@ class TavilySearch(BaseModel):
     - User wants financial market data or analysis (use topic='finance')
     - User asks for general knowledge not requiring current news
 
-    When NOT to use:
-    - User explicitly asks for NEWS or current events (use GuardianSearchRequest or RSS feeds)
-    - User wants very recent/breaking news (last 24-48 hours) - use RSS feeds instead
-
     Think first: Is this a general information query or a how-to question? If yes, use this tool.
     """
     query: str = Field(
         ...,
         min_length=1,
         max_length=500,
-        description=(
+        description=
             "Craft optimized search keywords based on user's query. "
             "Be specific and include key terms. "
             "Examples: 'Python asyncio tutorial', 'Bitcoin price history 2024', "
             "'quantum computing explained'. "
             "Avoid stop words like 'what', 'how', 'the' when possible."
-        )
     )
+
     max_results: int = Field(
         default=2,
         ge=1,
         le=20,
-        description=(
+        description=
             "Number of search results to return. "
             "Use 2-3 for quick answers, 5-10 for comprehensive research, "
             "10+ for deep exploration."
-        )
     )
+
     topic: Literal['general', 'finance'] = Field(
         default='general',
-        description=(
+        description=
             "Search topic type: "
             "'general' - for most queries (tech, science, tutorials, concepts). "
             "'finance' - ONLY when query is about stocks, markets, trading, "
             "financial data, or economic indicators."
-        )
     )
 
 class GuardianSearchRequest(BaseModel):
@@ -63,55 +58,41 @@ class GuardianSearchRequest(BaseModel):
     - User asks for culture, lifestyle, or opinion pieces
     - User wants ARCHIVED news articles (Guardian has extensive archives)
 
-    When NOT to use:
-    - User wants TECHNOLOGY news (use TechnologyRSSFeed for fresher tech news)
-    - User wants SPORTS news (use SportsRSSFeed for fresher sports news)
-    - User wants non-news information (use TavilySearch instead)
-
     Think first: Is this a general news query (politics, world, business, culture)?
     If yes, use this tool.
     """
     query: str = Field(
-        ...,
-        min_length=1,
-        max_length=500,
-        description=(
-            "Search query for news articles. Be specific and include key entities. "
-            "Examples: 'UK election results', 'climate change policy', "
-            "'inflation economic impact'. "
-            "The Guardian's search will match against article titles, bodies, and tags."
-        )
+        ...,min_length=1,max_length=500,description=
+            "Extract relevant keywords from user's query for semantic matching. "
+            "Keep it focused on 2-4 keywords for best results."
     )
+
     section: str = Field(
         default=None,
-        description=(
-            "Filter by Guardian section to narrow results. "
-            "Common sections: 'world', 'politics', 'business', 'environment', "
-            "'society', 'culture', 'lifeandstyle', 'science'. "
-            "Leave as None to search all sections (recommended for broad queries)."
-        )
+        description=
+        "Guardian section (e.g., 'world', 'politics', 'business', 'technology')"
     )
+
     page_size: int = Field(
         default=2,
         ge=1,
         le=200,
-        description=(
+        description=
             "Number of articles PER PAGE. "
             "Use 2-5 for quick results, 10-20 for moderate results, "
             "50+ for comprehensive results. "
             "Note: Total articles = page_size × max_pages."
-        )
     )
+
     max_pages: int = Field(
         default=1,
         ge=1,
         le=20,
-        description=(
+        description=
             "Number of pages to fetch. "
             "Use 1 for most queries (combine with higher page_size for more results). "
             "Use 2-5+ only if user explicitly wants very comprehensive results. "
             "Note: Total articles = page_size × max_pages."
-        )
     )
 
 class TechnologyRSSFeed(BaseModel):
@@ -120,25 +101,14 @@ class TechnologyRSSFeed(BaseModel):
 
     When to use:
     - User asks about recent tech news (e.g., "latest AI developments", "new iPhone release")
-    - User mentions specific tech companies with news context (e.g., "Tesla news", "Google AI")
     - User wants current events in: AI, cybersecurity, startups, tech products, semiconductors
-
-    When NOT to use:
-    - Historical tech information (use TavilySearch instead)
-    - Tech tutorials or guides (use TavilySearch instead)
-    - Non-tech news (use GuardianSearchRequest instead)
 
     Think first: Does the user want CURRENT TECHNOLOGY NEWS? If yes, use this tool.
     """
     query: str = Field(
-        ...,
-        min_length=1,
-        max_length=500,
-        description=(
-            "Extract the most relevant keywords from user's query for semantic matching. "
-            "Examples: 'Musk Tesla', 'AI breakthrough', 'cybersecurity breach', 'Apple iPhone'. "
+        ...,min_length=1, max_length=500, description=
+            "Extract relevant keywords from user's query for semantic matching. "
             "Keep it focused on 2-4 keywords for best results."
-        )
     )
 
 class SportsRSSFeed(BaseModel):
@@ -147,23 +117,13 @@ class SportsRSSFeed(BaseModel):
 
     When to use:
     - User asks about recent sports news (e.g., "latest football scores", "NBA results")
-    - User mentions specific teams/athletes with news context (e.g., "Lakers game", "Ronaldo")
     - User wants current events in: football, basketball, tennis, cricket, olympics, motorsports
-
-    When NOT to use:
-    - Historical sports information (use TavilySearch instead)
-    - Sports statistics or records (use TavilySearch instead)
-    - Non-sports news (use GuardianSearchRequest instead)
 
     Think first: Does the user want CURRENT SPORTS NEWS? If yes, use this tool.
     """
     query: str = Field(
-        ...,
-        min_length=1,
-        max_length=500,
-        description=(
+        ...,min_length=1,max_length=500,description=
             "Extract the most relevant keywords from user's query for semantic matching. "
             "Examples: 'Lakers game', 'Premier League', 'Wimbledon finals', 'F1 race'. "
             "Keep it focused on 2-4 keywords for best results."
-        )
     )
