@@ -18,8 +18,6 @@ class BaseRSSClient(ABC):
         self.similarity_threshold = similarity_threshold
         self.embedding_model = embedding_model
 
-        logger.info('Embedding model loaded')
-
     @staticmethod
     def _fetch_feed(feed_urls: list[str]) -> List[Dict]:  # When you define a method in the base class at the class level (not inside __init__), it's automatically available to all subclasses.
         all_entries = []
@@ -34,7 +32,6 @@ class BaseRSSClient(ABC):
                 all_entries.append({
                     'title_and_summary': text,
                     'link': entry.link,
-                    'source': feed_url,
                 })
         return all_entries
 
@@ -93,25 +90,10 @@ class BaseRSSClient(ABC):
             })
             response.raise_for_status()
 
-            soup = BeautifulSoup(response.content, 'html.parser')
+            soup = BeautifulSoup(response.content, features="html.parser")
 
-            # Remove script and style elements
-            for script in soup(["script", "style"]):
-                script.decompose()
-
-            # Try to find main content area
-            article = (
-                soup.find('article') or
-                soup.find('main') or
-                soup.find('div', class_='content') or
-                soup.find('div', class_='article')
-            )
-
-            if article:
-                text = article.get_text(separator=' ', strip=True)
-            else:
-                text = soup.get_text(separator=' ', strip=True)
-
+            # Get raw text content from soup
+            text = soup.text
             return text
 
         except requests.RequestException as e:
@@ -188,7 +170,8 @@ def main():
     embedding_model_config = ModelConfig(model="all-minilm:33m", model_provider_url=settings.OLLAMA_HOST)
     embedding_model = embedding_model_config.get_embedding()
     rss = TechnologyRSSClient(embedding_model=embedding_model)
-    rss.search(validation=TechnologyRSSFeed(query='cyber security'))
+    a = rss.search(validation=TechnologyRSSFeed(query='cyber security'))
+    print(a)
     # TODO try again after set the agent.py file. Probably there will be an error on validation
 
 

@@ -95,6 +95,7 @@ class GuardianSearchRequest(BaseModel):
             "Note: Total articles = page_size × max_pages."
     )
 
+
 class TechnologyRSSFeed(BaseModel):
     """
     Use this tool for TECHNOLOGY-RELATED CURRENT NEWS queries only.

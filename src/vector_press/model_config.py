@@ -1,3 +1,5 @@
+import logging
+
 from langchain_ollama import ChatOllama, OllamaEmbeddings
 #from ai_common.llm import load_ollama_model #,_check_and_pull_ollama_model
 from config import settings
@@ -39,6 +41,7 @@ def load_ollama_model(model_name: str, ollama_url: str) -> None:
     try:
         ollama_client.generate(model=model_name)
     except Exception as e:
+        logging.error(f'Failed to generate {model_name}: {e},it throws an error because of that, it will try to embed rn')
         ollama_client.embed(model_name)
 
 

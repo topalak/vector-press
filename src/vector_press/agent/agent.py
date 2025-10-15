@@ -31,21 +31,29 @@ You can call these tools in series or in parallel. Your functionality is conduct
 <available_tools>
 You have access to 4 specialized tools. Choose carefully based on the user's intent:
 
-1. **TavilySearch** - General Web Search
+1. **TechnologyRSSFeed** - Current Technology News
    Use when:
-   - User asks for tutorials, guides, or how-to information (e.g., "how to learn Python")
-   - User wants historical information (e.g., "history of Bitcoin", "what is quantum computing")
-   - User asks about concepts, definitions, or explanations (e.g., "explain blockchain")
-   - User wants financial market data or analysis (set topic='finance')
-   - User asks for general knowledge not requiring current news
+   - User asks about recent tech news (e.g., "latest AI developments", "new iPhone release")
+   - User wants current events in: AI, cybersecurity, startups, tech products, semiconductors
 
    Do NOT use when:
-   - User explicitly asks for NEWS or current events
-   - User wants very recent/breaking news (use RSS feeds instead)
+   - User wants historical tech information (use TavilySearch)
+   - User wants tech tutorials or guides (use TavilySearch)
 
-   Think first: Is this a general information query or a how-to question? If yes, use this tool.
+   Think first: Does the user want CURRENT TECHNOLOGY NEWS? If yes, use this tool.
 
-2. **GuardianSearchRequest** - General News Archive
+2. **SportsRSSFeed** - Current Sports News
+   Use when:
+   - User asks about recent sports news 
+   - User wants current events in: football, basketball, tennis, cricket, olympics, motorsports
+
+   Do NOT use when:
+   - User wants historical sports info or statistics (use TavilySearch)
+   - User wants sports guides or rules (use TavilySearch)
+
+   Think first: Does the user want CURRENT SPORTS NEWS? If yes, use this tool.
+ 
+3. **GuardianSearchRequest** - General News Archive
    Use when:
    - User asks for news about world events, politics, or general current affairs
    - User wants business news, economics, or corporate stories
@@ -59,27 +67,17 @@ You have access to 4 specialized tools. Choose carefully based on the user's int
 
    Think first: Is this a general news query (politics, world, business, culture)? If yes, use this tool.
 
-3. **TechnologyRSSFeed** - Current Technology News
+4. **TavilySearch** - General Web Search
    Use when:
-   - User asks about recent tech news (e.g., "latest AI developments", "new iPhone release")
-   - User wants current events in: AI, cybersecurity, startups, tech products, semiconductors
+   - User asks for tutorials, guides, or how-to information (e.g., "how to learn Python")
+   - User wants historical information (e.g., "history of Bitcoin", "what is quantum computing")
+   - User asks about concepts, definitions, or explanations (e.g., "explain blockchain")
+   - User wants financial market data or analysis (set topic='finance')
+   - User asks for general knowledge not requiring current news
 
    Do NOT use when:
-   - User wants historical tech information (use TavilySearch)
-   - User wants tech tutorials or guides (use TavilySearch)
-
-   Think first: Does the user want CURRENT TECHNOLOGY NEWS? If yes, use this tool.
-
-4. **SportsRSSFeed** - Current Sports News
-   Use when:
-   - User asks about recent sports news (e.g., "latest football scores", "NBA results")
-   - User wants current events in: football, basketball, tennis, cricket, olympics, motorsports
-
-   Do NOT use when:
-   - User wants historical sports info or statistics (use TavilySearch)
-   - User wants sports guides or rules (use TavilySearch)
-
-   Think first: Does the user want CURRENT SPORTS NEWS? If yes, use this tool.
+   - User explicitly asks for NEWS or CURRENT events
+   - User wants very recent/breaking news (use RSS feeds instead)
 
 FALLBACK STRATEGY:
 If RSS feeds return no results or insufficient information:
@@ -287,6 +285,7 @@ class VectorPressAgent:
                 break
 
             self.state.query = query
+            self.state.context_window.append(HumanMessage(content=query))
 
             # Invoke graph (returns dict) and convert back to AgentState
             result = self.app.invoke(self.state)
@@ -297,7 +296,7 @@ class VectorPressAgent:
                 print(last_message.content)
 
             query = input("\nYou: ").strip()
-            self.state.context_window.append(HumanMessage(content=query))
+
 
         return "No response generated"
 
@@ -317,11 +316,11 @@ def main():
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     )
 
-    config = ModelConfig(model="qwen3:1.7b", model_provider_url=settings.OLLAMA_HOST, reasoning=False)
+    config = ModelConfig(model="qwen3:14b", model_provider_url=settings.OLLAMA_HOST, reasoning=False)
     llm = config.get_llm()
     agent = VectorPressAgent(llm)
 
-    agent.ask(query="I want to macbook m3 pro, what do you suggest? is it worth to buy it")
+    agent.ask(query="NBA results")
     #can you multiple 15 and 764 by calling tools?
     #Who is Cristiano Ronaldo?
     #Can you fetch 200 articles about Ukraine and Russia war?
