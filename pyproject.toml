@@ -9,10 +9,14 @@ authors = [
 requires-python = ">=3.13"
 dependencies = [
     "ai-common @ git+https://github.com/bgunyel/ai-common.git@main",
+    "beautifulsoup4>=4.14.2",
+    "feedparser>=6.0.12",
     "langgraph>=0.6.0",
+    "ollama>=0.5.4",
     "pydantic>=2.11.7",
     "pydantic-settings>=2.10.1",
     "requests>=2.32.4",
+    "scikit-learn>=1.7.2",
     "streamlit>=1.29.0",
     "supabase>=2.18.1",
     "torch>=2.8.0",

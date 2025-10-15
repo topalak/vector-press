@@ -1,13 +1,13 @@
-from vector_press.agent.agent import main
+from vector_press.agent.agent import VectorPressAgent
 
-if __name__ == "__main__":
-    main()
-
-
+agent = VectorPressAgent(model_name='llama3.2:3b')
+agent.ask('Can you fetch latest news about Ukraine and Russia?')
 
 
 #TODO
 # for now I need to convert database uploading method to a tool
 # re-write a query generator like re-writing topic (especially topic because it has news, general, finance topics) , query, time_range etc.
-# when you reached several tools track the llm's behaviour in debug mode to see tool_calls or other methods,
-# bind tool u cikar onun yerine JSON schema'sini kendin yaz
+# tool definitionlari rag yapabilirsin, bunun yerine cok daha basit bir llm judge ile yaparsan daha iyi bir sonuc alirsi
+
+# TODO guardian ya da nyt mcp yapilabilir
+# TODO warning python arastir

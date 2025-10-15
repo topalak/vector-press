@@ -1,14 +1,16 @@
 from abc import ABC, abstractmethod
 
 from typing import Dict
-from datetime import datetime
+#from datetime import datetime
 import time
 import requests
 
+from src.vector_press.agent.tools_validation import GuardianSearchRequest
+
 from config import settings
 
-
-def extract_article_text(article_data: Dict) -> Dict | None:
+# TODO if we develop mcp server it will save us from typing different api formats for every news sources
+def _extract_article_text(article_data: Dict) -> Dict | None:
     """
     Extract and clean text from Guardian API article response
 
@@ -34,7 +36,7 @@ def extract_article_text(article_data: Dict) -> Dict | None:
         publication_date = article_data.get("webPublicationDate", "")
         section_name = article_data.get("sectionName", "")
 
-        print(f"🔍 [DEBUG] Article ID: {article_id}")
+        #print(f"🔍 [DEBUG] Article ID: {article_id}")
 
         # Extract fields if available
         fields = article_data.get("fields", {})
@@ -68,18 +70,18 @@ def extract_article_text(article_data: Dict) -> Dict | None:
 
         # Create structured metadata
         meta_data = {
-            "article_id": article_id,
+            #"article_id": article_id,
             # Guardian API ID as article_id (e.g., "world/2022/oct/21/russia-ukraine-war-latest...")
-            "title": title,
-            "section": section_name,
-            "publication_date": publication_date,
+            #"title": title,
+            #"section": section_name,
+            #"publication_date": publication_date,
             "url": url,
             #"summary": standfirst,
-            "body_text": body_text,
-           # "trail_text": trail_text,
-           # "word_count": word_count,
-           # "char_count": char_count,
-            "fetch_time": datetime.now().isoformat()
+            #"body_text": body_text,
+            #"trail_text": trail_text,
+            #"word_count": word_count,
+            #"char_count": char_count,
+            #"fetch_time": datetime.now().isoformat()
         }
 
         print(f"✅ [DEBUG] Article extraction completed!")
@@ -95,82 +97,54 @@ def extract_article_text(article_data: Dict) -> Dict | None:
         print(f"🔥 [DEBUG] Error extracting article text: {e}")
         return None
 
-class BaseAPIClient(ABC):   # ABC = Abstract Base Class, ABC prevents creating instances of incomplete classes and forces subclasses to implement all required abstract methods.
-    def __init__(self, api_key:str, base_url:str):
-        self.api_key = api_key
-        self.base_url = base_url
+class BaseNewsAPIClient(ABC):   # ABC = Abstract Base Class, ABC prevents creating instances of incomplete classes and forces subclasses to implement all required abstract methods.
+    def __init__(self, api_key: str, base_url: str):
+        self._api_key = api_key  # attributes names
+        self._base_url = base_url
 
     @abstractmethod
-    def search_articles(self) -> Dict:
+    def search(self, validation) -> Dict:
         pass
 
-class GuardianAPIClient(BaseAPIClient):
+class GuardianAPIClient(BaseNewsAPIClient):
     def __init__(self):
         super().__init__(
-            api_key=settings.GUARDIAN_API_KEY,
+            api_key=settings.GUARDIAN_API_KEY,  #these are parameter's name, not like base class's attribute names
             base_url="https://content.guardianapis.com"
         )
 
-        print(f"🔧 [DEBUG] Guardian API Client initialized")
+        #print(f"🔧 [DEBUG] Guardian API Client initialized")
 
-    def search_articles(self,
-                        query: str = None,
-                        section: str = None,
-                        page_size: int = 2,
-                        from_date : str = None,
-                        show_fields: str = "all",
-                        order_by: str = None,
-                        max_pages: int = 2) -> list[Dict] | None:
+    def search(self, validation : GuardianSearchRequest) -> list[Dict] | None:
+        """
+        Search articles using validation object.
 
-        print(f"\n📡 [DEBUG] Starting API search for {max_pages} page(s)...")
+        Args:
+            validation: GuardianSearchRequest object with search parameters
+        """
 
-        # Build API endpoint
-        endpoint = f"{self.base_url}/search"
+        endpoint = f"{self._base_url}/search"
 
-        # Build base parameters
-        base_params = {
-            "api-key": self.api_key
-        }
-
-        # Add optional parameters
-        if query:
-            base_params["q"] = query  #here is very important guardian expects query as 'q' we set it as 'q' here.
-
-        if section:
-            base_params["section"] = section
-
-        if from_date:
-            base_params["from-date"] = from_date
-
-        if page_size:
-            base_params["page-size"] = page_size
-
-        if show_fields:
-            base_params["show-fields"] = show_fields
-
-        if order_by:
-            base_params["order-by"] = order_by
-
-        if max_pages:
-            base_params["max-pages"] = max_pages
+        base_params = validation.model_dump()
+        base_params["q"] = base_params.pop("query")
+        base_params["api-key"] = self._api_key
 
         # Collect articles from all pages
         all_extracted_articles = []
         total_start_time = time.time()
-        page = 0  # Initialize page counter
 
         try:
-            for page in range(1, max_pages + 1):
-                print(f"\n📄 [DEBUG] Fetching page {page}/{max_pages}...")
+            for page in range(1, base_params['max_pages'] + 1):
+                #print(f"\n📄 [DEBUG] Fetching page {page}/{max_pages}...")
 
                 # Add page parameter
-                params = {**base_params, "page": page}
+                params = {**base_params, "page": page}  #"**base_params" unpacks the dict
 
-                page_start_time = time.time()
+                #page_start_time = time.time()
                 response = requests.get(endpoint, params=params, timeout=30)
-                page_end_time = time.time()
+                #page_end_time = time.time()
 
-                print(f"[DEBUG] Page {page} request took {page_end_time - page_start_time:.2f} seconds")
+                #print(f"[DEBUG] Page {page} request took {page_end_time - page_start_time:.2f} seconds")
 
                 if response.status_code == 200:
                     api_data = response.json()
@@ -180,19 +154,19 @@ class GuardianAPIClient(BaseAPIClient):
                     if not articles_data:
                         print(f"[DEBUG] No articles found on page {page}. Stopping pagination.")
                         break
-                    print(f"[DEBUG] Found {len(articles_data)} articles on page {page}")
+                    #print(f"[DEBUG] Found {len(articles_data)} articles on page {page}")
 
                     if not articles_data:
                         print(f"[DEBUG] All articles on page {page} already exist. Skipping to next page.")
                         continue
 
-                    print(
-                        f"[DEBUG] Processing {len(articles_data)} new articles from page {page} (after duplicate check)")
+                    #print(
+                        #f"[DEBUG] Processing {len(articles_data)} new articles from page {page} (after duplicate check)")
 
                     # Process each article using the extraction function
                     for i, article_data in enumerate(articles_data):
-                        print(f"[DEBUG] Processing article {i + 1}/{len(articles_data)} from page {page}")
-                        extracted = extract_article_text(article_data)
+                        #print(f"[DEBUG] Processing article {i + 1}/{len(articles_data)} from page {page}")
+                        extracted = _extract_article_text(article_data)
                         if extracted:
                             all_extracted_articles.append(extracted)
                         else:
@@ -208,13 +182,19 @@ class GuardianAPIClient(BaseAPIClient):
             total_end_time = time.time()
             total_time = total_end_time - total_start_time
 
-            print(f"\n🎉 [DEBUG] Pagination completed!")
-            print(f"📊 [DEBUG] Total pages fetched: {min(page, max_pages)}")
-            print(f"📊 [DEBUG] Total articles extracted: {len(all_extracted_articles)}")
-            print(f"📊 [DEBUG] Total time: {total_time:.2f} seconds")
+            #print(f"\n🎉 [DEBUG] Pagination completed!")
+            #print(f"📊 [DEBUG] Total pages fetched: {min(page, max_pages)}")
+            #print(f"📊 [DEBUG] Total articles extracted: {len(all_extracted_articles)}")
+            #print(f"📊 [DEBUG] Total time: {total_time:.2f} seconds")
 
             return all_extracted_articles if all_extracted_articles else None
 
         except requests.exceptions.RequestException as e:
             print(f"🔥 [DEBUG] Request exception occurred: {e}")
             return None
+
+
+class NewYorkTimesAPIClient(BaseNewsAPIClient):
+    def __init__(self):
+        super().__init__(api_key=settings.NEWYORKTIMES_API,
+                         base_url="https://api.nytimes.com/svc/")
