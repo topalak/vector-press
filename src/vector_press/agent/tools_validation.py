@@ -1,8 +1,18 @@
-from pydantic import BaseModel, Field
+import logging
+
+from pydantic import BaseModel, Field, ValidationError
 from typing import Literal
 
 #state is a Pydantic model (AgentState), not a dictionary. Pydantic models don't have a .get() method. we aren't able to pass it as dictionary like --> state['context_window'] we need to pass it like
 # state.context_window
+
+def validate_data(fields, actual_fields):
+    try:
+        validated = actual_fields(**fields)
+        print(f"validated: {validated}")
+        return validated
+    except ValidationError as e:
+        logging.error(e)
 
 class TavilySearch(BaseModel):
     """

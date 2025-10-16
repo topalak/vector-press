@@ -8,7 +8,7 @@ import numpy as np
 import requests
 from bs4 import BeautifulSoup
 
-from src.vector_press.agent.tools_validation import TechnologyRSSFeed
+from src.vector_press.agent.tools_validation import TechnologyRSSFeed, SportsRSSFeed
 
 logger = logging.getLogger(__name__)
 
@@ -160,7 +160,7 @@ class SportsRSSClient(BaseRSSClient):
          "https://feeds.bbci.co.uk/sport/rss.xml",
     ]
 
-    def search(self, validation: TechnologyRSSFeed) -> list[str]:
+    def search(self, validation: SportsRSSFeed) -> list[str]:
         result = self._search(feed_urls = self.feed_url, validation=validation)
         return result
 

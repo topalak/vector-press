@@ -3,9 +3,9 @@ from src.vector_press.agent.agent import VectorPressAgent, AgentState, _should_c
 
 # API clients
 from .news_api_client import GuardianAPIClient, BaseNewsAPIClient, _extract_article_text
-from .rss_client import TechnologyRSSClient
+from .rss_client import TechnologyRSSClient, SportsRSSClient
 # Validation models
-from .tools_validation import TavilySearch, GuardianSearchRequest
+from .tools_validation import TavilySearch, GuardianSearchRequest, TechnologyRSSFeed, SportsRSSFeed
 
 # Export all public classes and functions
 __all__ = [
@@ -18,9 +18,12 @@ __all__ = [
     "GuardianAPIClient",
     "BaseNewsAPIClient",
     "TechnologyRSSClient",
-    #"_extract_article_text",
+    "SportsRSSClient",
 
     # Validation models
     "TavilySearch",
     "GuardianSearchRequest",
+    "TechnologyRSSFeed",
+    'SportsRSSFeed',
+
 ]
