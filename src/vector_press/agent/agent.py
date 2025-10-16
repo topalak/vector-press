@@ -243,8 +243,6 @@ class VectorPressAgent:
                     tool_call_id=tool_call["id"]
                 ))
 
-            #else:
-
         return state
 
     def _tavily_web_search(self, validation: TavilySearch) -> list[str]:
@@ -325,7 +323,7 @@ def main():
     llm = config.get_llm()
     agent = VectorPressAgent(llm)
 
-    agent.ask(query="can you fetch barrack obama's news?")
+    agent.ask(query="can you fetch Barack obama's selection related news? Please use The Guardian API")
     #can you multiple 15 and 764 by calling tools?
     #Who is Cristiano Ronaldo?
     #Can you fetch 200 articles about Ukraine and Russia war?
@@ -342,6 +340,6 @@ def main():
     
     '''
 #TODO there is a big problem that we are totally hoping the tools retrieve true answers but its not going like that. TavilySearch tool get the news which says kamala harris won the last selection.
-
+#TODO if user asks 2 different topics at the same query, we need to make different tool calls and i think we can handle it with planning tool
 if __name__ == '__main__':
     main()
