@@ -5,7 +5,7 @@ from typing import Dict
 import time
 import requests
 
-from src.vector_press.agent.tools_validation import GuardianSearchRequest
+from src.vector_press.agent.tools_validation import (TheGuardianApi, NewYorkTimeApi)
 
 from config import settings
 
@@ -79,7 +79,7 @@ class GuardianAPIClient(BaseNewsAPIClient):
             base_url="https://content.guardianapis.com"
         )
 
-    def search(self, validation : GuardianSearchRequest) -> list[Dict] | None:
+    def search(self, validation: TheGuardianApi) -> list[Dict] | None:
         """
         Search articles using validation object.
 
@@ -90,16 +90,18 @@ class GuardianAPIClient(BaseNewsAPIClient):
         endpoint = f"{self._base_url}/search"
 
         base_params = validation.model_dump()
-        base_params["q"] = base_params.pop("query")
+        base_params["q"] = base_params.pop("query")  #pop removes the key and return its value
         base_params["show-fields"] = base_params.pop("show_fields")
         base_params["page-size"] = base_params.pop("page_size")
         base_params["api-key"] = self._api_key
 
+        max_pages = base_params.pop("max_pages")
+
         all_extracted_articles = []
         try:
-            for page in range(1, base_params['max_pages'] + 1):
+            for page in range(1, max_pages + 1):
                 params = {**base_params, "page": page}  #"**base_params" unpacks the dict
-                response = requests.get(endpoint, params=params, timeout=30)
+                response = requests.get(endpoint, params=params, timeout=2)
 
                 if response.status_code == 200:
                     api_data = response.json()
@@ -110,6 +112,7 @@ class GuardianAPIClient(BaseNewsAPIClient):
                         extracted = _extract_article_text(article_data)  #we will return dict
                         if extracted:
                             all_extracted_articles.append(extracted)
+                            print('ossuruk')
                         else:
                             print(f"[DEBUG] Failed to extract article {article + 1} from page {page}")
 
@@ -130,4 +133,16 @@ class GuardianAPIClient(BaseNewsAPIClient):
 class NewYorkTimesAPIClient(BaseNewsAPIClient):
     def __init__(self):
         super().__init__(api_key=settings.NEWYORKTIMES_API,
-                         base_url="https://api.nytimes.com/svc/")
+                         base_url= "https://api.nytimes.com/svc/search/v2/articlesearch.json?")
+
+
+    def search(self, validation: NewYorkTimeApi ) -> list[Dict] | None:
+        base_params = validation.model_dump()
+        base_params['api-key'] = self._api_key
+        endpoint = f"{self._base_url}"
+
+        response = requests.get(url=endpoint, params=base_params, timeout=2)
+        if response.status_code == 200:
+            api_data = response.json()
+
+            article_data = api_data.get('response', {}).get('results', [])

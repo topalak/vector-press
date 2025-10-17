@@ -7,6 +7,7 @@ ENV_FILE_DIR = os.path.abspath(os.path.join(FILE_DIR, os.pardir))
 
 class Settings(BaseSettings):
     OLLAMA_HOST: str = ""
+    OLLAMA_API_KEY: str = ""
     GROQ_API_KEY: str = ""
     SUPABASE_URL: str = ""
     SUPABASE_SERVICE_KEY: str = ""

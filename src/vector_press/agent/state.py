@@ -13,5 +13,6 @@ class AgentState(BaseModel):
     query: Union[str,BaseMessage,int] #query can be a str or a BaseMessage, it's not a list we want only str or BaseMessage
     #pruned_message: Annotated[ToolMessage, add_messages] | None
 
-#state is a Pydantic model (AgentState), not a dictionary. Pydantic models don't have a .get() method. we aren't able to pass it as dictionary like --> state['context_window'] we need to pass it like
+    meta_data: list[dict]
+    #state is a Pydantic model (AgentState), not a dictionary. Pydantic models don't have a .get() method. we aren't able to pass it as dictionary like --> state['context_window'] we need to pass it like
 # state.context_window

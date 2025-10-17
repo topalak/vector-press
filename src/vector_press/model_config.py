@@ -35,15 +35,15 @@ def _check_and_pull_ollama_model(model_name: str, ollama_url: str) -> None:
                 bars[digest].update(completed - bars[digest].n)
 
             current_digest = digest
-def load_ollama_model(model_name: str, ollama_url: str) -> None:
-    _check_and_pull_ollama_model(model_name=model_name, ollama_url=ollama_url)
-    ollama_client = Client(host=ollama_url)
+
+
+    '''
     try:
         ollama_client.generate(model=model_name)
     except Exception as e:
         logging.error(f'Failed to generate {model_name}: {e},it throws an error because of that, it will try to embed rn')
         ollama_client.embed(model_name)
-
+    '''
 
 
 class ModelConfig:
@@ -54,6 +54,7 @@ class ModelConfig:
         num_ctx:int = 8192,         #when we look it here there is "=" and that means is optional, this is default value, and you can change it in your config
         reasoning:bool = False,
         temperature:int = 0,
+        use_cloud:bool = False,     #Set to True to use Ollama Cloud instead of local
         #num_predict:int = 128,   that causes tool call error, model cant generate tool call because of the limitation.
     ):
 
@@ -62,27 +63,55 @@ class ModelConfig:
         self.num_ctx = num_ctx      #when __init__ invokes it creates dummies when it comes that line they are coming real variables
         self.reasoning = reasoning
         self.temperature = temperature
+        self.use_cloud = use_cloud
         #self.num_predict = num_predict
+
 
     def get_llm(self):
         #we are reaching that method by line 55, and we have self dict which equiv
-        load_ollama_model(self.model, self.model_provider_url)
 
-        return ChatOllama(  #let's wrap our model
-            model=self.model,
-            base_url=self.model_provider_url,
-            num_ctx=self.num_ctx,
-            reasoning=self.reasoning,
-            temperature=self.temperature,
-            keep_alive="5m",
-            #num_predict=self.num_predict,
-        )
+        if self.use_cloud:
+            # Use Ollama Cloud
+            return ChatOllama(
+                model=self.model,
+                base_url="https://ollama.com",
+                client_kwargs={
+                    'headers': {'Authorization': f'Bearer {settings.OLLAMA_API_KEY}'}
+                },
+                num_ctx=self.num_ctx,
+                reasoning=self.reasoning,
+                temperature=self.temperature,
+                keep_alive="5m",
+            )
+        else:
+            # Use local Ollama
+            def load_ollama_model(model_name: str, ollama_url: str) -> None:
+                _check_and_pull_ollama_model(model_name=model_name, ollama_url=ollama_url)
+                ollama_client = Client(host=ollama_url)
+                ollama_client.generate(model=model_name)
+
+                load_ollama_model(model_name=self.model, ollama_url=self.model_provider_url)
+
+            return ChatOllama(  #let's wrap our model
+                model=self.model,
+                base_url=self.model_provider_url,
+                num_ctx=self.num_ctx,
+                reasoning=self.reasoning,
+                temperature=self.temperature,
+                keep_alive="5m",
+                #num_predict=self.num_predict,
+            )
 
     def get_embedding(self):
         #_check_and_pull_ollama_model(self.model_name, self.model_provider_url)
         #ollama_client.embed(model=model_name)  #upload the llm to memory
-        load_ollama_model(self.model, self.model_provider_url)
+        def load_ollama_model(model_name: str, ollama_url: str) -> None:
+            _check_and_pull_ollama_model(model_name=model_name, ollama_url=ollama_url)
+            ollama_client = Client(host=ollama_url)
+            ollama_client.embed(model=model_name)
 
+
+        load_ollama_model(model_name=self.model, ollama_url=self.model_provider_url)
         return OllamaEmbeddings(
             model=self.model,
             base_url=self.model_provider_url,

@@ -1,11 +1,11 @@
 from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
 from langgraph.graph import StateGraph, START, END
 
-from src.vector_press.agent.news_api_client import GuardianAPIClient
+from src.vector_press.agent.news_api_client import GuardianAPIClient, NewYorkTimesAPIClient  #TODO we need to handle it by invoking the BaseClient, that way is more elegant from this
 from src.vector_press.agent.web_search_client import TavilyWebSearchClient
 from src.vector_press.agent.rss_client import TechnologyRSSClient, SportsRSSClient
 
-from src.vector_press.agent.tools_validation import TavilySearch, GuardianSearchRequest, TechnologyRSSFeed, SportsRSSFeed, validate_data
+from src.vector_press.agent.tools_validation import TavilySearch, TheGuardianApi,NewYorkTimesApi, TechnologyRSSFeed, SportsRSSFeed, validate_data
 
 from src.vector_press.model_config import ModelConfig
 from config import settings
@@ -146,15 +146,17 @@ class VectorPressAgent:
 
         self.tavily_search_client = TavilyWebSearchClient()
         self.guardian_client = GuardianAPIClient()
+        self.new_york_times_client = NewYorkTimesAPIClient()
         self.rss_client = TechnologyRSSClient(self.embedding_model)  # we are injecting the embedding model here
         self.sports_client = SportsRSSClient(self.embedding_model)
 
-        tools = [TavilySearch, GuardianSearchRequest, TechnologyRSSFeed, SportsRSSFeed]
+        tools = [TavilySearch, TheGuardianApi, NewYorkTimesApi, TechnologyRSSFeed, SportsRSSFeed]
         self.structured_llm = self.llm.bind_tools(tools=tools)
 
         self.state: AgentState = AgentState(  #check is there tools_call in default llm
             context_window=[SystemMessage(content=INSTRUCTIONS)],
             query="",
+            meta_data = [],
         )
         self.app = self._build_graph()
 
@@ -163,6 +165,7 @@ class VectorPressAgent:
 
         start_time = time.time()
         response = self.structured_llm.invoke(state.context_window)  #state AIMessage
+        #TODO we need to add sources and publication dates which news come from API's, structured output
         end_time = time.time()
         elapsed_time = end_time - start_time
         logger.info(f"LLM response generation took {elapsed_time:.2f} seconds")
@@ -176,6 +179,7 @@ class VectorPressAgent:
         raw_tool_result = ""  # TODO ask it to BBB, im getting error if i remove that variable
 
         for tool_call in state.context_window[-1].tool_calls:
+            #TODO we except model makes parallel tool calls for API NEWS by using The Guardian and NYT
             tool_name = tool_call["name"]
             args = tool_call.get("args", {})
 
@@ -183,7 +187,18 @@ class VectorPressAgent:
                 case "GuardianSearchRequest":
                     try:
                         #raw_tool_result = self._search_guardian_articles(GuardianSearchRequest(**args))
-                        raw_tool_result = self._search_guardian_articles(validate_data(args,GuardianSearchRequest))
+                        articles_data = self._guardian_api(validate_data(args,TheGuardianApi))
+
+                        # Store metadata for citations
+                        if articles_data:
+                            for article in articles_data:
+                                state.meta_data.append({
+                                    "source": article.get("source", ""),
+                                    "publication_date": article.get("publication_date", ""),
+                                })
+                            # Extract only body_text for pruning
+                            raw_tool_result = [article.get("body_text", "") for article in articles_data]
+
                     except Exception as e:
                         logger.warning(f"Guardian API error: {e}")
                         #TODO
@@ -224,12 +239,11 @@ class VectorPressAgent:
 
             if raw_tool_result:
                 raw_tool_result = '\n'.join(raw_tool_result)
-                print('ossuruk')
 
             if len(raw_tool_result) > 0:
                 #TODO ask BBB how to monitor what pruning_llm takes, I want to both approaches behaviour
                 start_time = time.time()
-                pruned_tool_result = self.pruning_llm.invoke([
+                pruned_tool_result = self.pruning_llm.invoke([   #TODO we are invoking the llm and it is spending time and we can improve this llm calling by validating the response as 0 or 1, etc
                     {"role": "system", "content": tool_pruning_prompt.format(user_request=state.query), },
                     {"role": "user", "content": raw_tool_result},
                 ])
@@ -249,9 +263,13 @@ class VectorPressAgent:
         """Web Search Tool"""
         return self.tavily_search_client.search(validation)
 
-    def _search_guardian_articles(self, validation: GuardianSearchRequest) -> list[dict]:
+    def _guardian_api(self, validation: TheGuardianApi) -> list[dict]:
         """News Retrieve Tool"""
         return self.guardian_client.search(validation)
+
+    def _new_york_times_api(self, ):
+        """News Retrieve Tool"""
+        return self.new_york_times_client.search(validation=NewYorkTimesApi)
 
     def _technology_rss(self, validation: TechnologyRSSFeed) -> list[str]:
         """Technology RSS Feed"""
@@ -318,12 +336,12 @@ def main():
         level=logging.INFO,  # Show INFO, WARNING, ERROR
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     )
-
-    config = ModelConfig(model="qwen3:4b", model_provider_url=settings.OLLAMA_HOST, reasoning=False)
+    #gpt-oss:120b-cloud
+    config = ModelConfig(model="qwen3:14b", model_provider_url=settings.OLLAMA_HOST, reasoning=False, use_cloud=False)
     llm = config.get_llm()
     agent = VectorPressAgent(llm)
 
-    agent.ask(query="can you fetch Barack obama's selection related news? Please use The Guardian API")
+    agent.ask(query="Did kamala harris win the last election? Use The Guardian Tool")
     #can you multiple 15 and 764 by calling tools?
     #Who is Cristiano Ronaldo?
     #Can you fetch 200 articles about Ukraine and Russia war?
