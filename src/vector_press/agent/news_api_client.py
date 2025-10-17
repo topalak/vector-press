@@ -108,7 +108,6 @@ class GuardianAPIClient(BaseNewsAPIClient):
                     # Process each article using the extraction function
                     for article, article_data in enumerate(articles_data):
                         extracted = _extract_article_text(article_data)  #we will return dict
-                        print(extracted)
                         if extracted:
                             all_extracted_articles.append(extracted)
                         else:

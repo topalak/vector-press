@@ -63,11 +63,12 @@ class GuardianSearchRequest(Query):
     show_fields: str = Field(default="all", description="Field names to show")
     section: Optional[str] = Field(default=None, description="Guardian section (e.g., 'world', 'politics', 'business', 'technology')")
     pages: int = Field(description="Maximum number of results to return, dont forget pages X page_size = Article number ")
-    page_size: int = Field(default=2,ge=1,le=200,
-        description="Number of articles PER PAGE. "
-            "Use 2-5 for quick results, 10-20 for moderate results, "
-            "50+ for comprehensive results. "
-            "Note: Total articles = page_size × max_pages.")
+    page_size: int = Field(default=23,#ge=1,le=200),
+                           )
+        #description="Number of articles PER PAGE. "
+          #  "Use 2-5 for quick results, 10-20 for moderate results, "
+          #  "50+ for comprehensive results. "
+          #  "Note: Total articles = page_size × max_pages.")
 
     max_pages: int = Field(default=1,ge=1,le=20,
             description="Number of pages to fetch. "

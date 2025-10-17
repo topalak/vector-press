@@ -224,7 +224,7 @@ class VectorPressAgent:
 
             if raw_tool_result:
                 raw_tool_result = '\n'.join(raw_tool_result)
-
+                print('ossuruk')
 
             if len(raw_tool_result) > 0:
                 #TODO ask BBB how to monitor what pruning_llm takes, I want to both approaches behaviour
@@ -249,7 +249,7 @@ class VectorPressAgent:
         """Web Search Tool"""
         return self.tavily_search_client.search(validation)
 
-    def _search_guardian_articles(self, validation: GuardianSearchRequest) -> list[str]:
+    def _search_guardian_articles(self, validation: GuardianSearchRequest) -> list[dict]:
         """News Retrieve Tool"""
         return self.guardian_client.search(validation)
 
