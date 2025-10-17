@@ -22,6 +22,7 @@ embedding_model_config = ModelConfig(model='all-minilm:33m', model_provider_url=
 
 #TODO You are NEWS assistant, update tool's definitions if user asks exactly "news" cart curt
 
+#TODO add new york times tool to system instruction
 INSTRUCTIONS = """You are a smart and helpful research assistant. Your name is Big Brother.
 
 <task>
@@ -184,7 +185,7 @@ class VectorPressAgent:
             args = tool_call.get("args", {})
 
             match tool_name:
-                case "GuardianSearchRequest":
+                case "TheGuardianApi":
                     try:
                         #raw_tool_result = self._search_guardian_articles(GuardianSearchRequest(**args))
                         articles_data = self._guardian_api(validate_data(args,TheGuardianApi))
@@ -213,6 +214,13 @@ class VectorPressAgent:
                             #))
                             #continue
                     #TODO you need to search error types to understand what kind of errors for tool calls. I need to update except block with those specific errors
+                    '''
+                case "NewYorkTimesApi":
+                    try:
+                        raw_tool_result = self._new_york_times_api(validate_data(args, NewYorkTimesApi))
+                    except Exception as e:
+                        logger.warning(f"NewYorkTimesAPI error: {e}")
+                    ''' #NewYorkTimesApi
                 case "TavilySearch":
                     try:
                         #raw_tool_result = self._tavily_web_search(TavilySearch(**args))  #this unpacks the args and validates them at the same time
@@ -267,9 +275,9 @@ class VectorPressAgent:
         """News Retrieve Tool"""
         return self.guardian_client.search(validation)
 
-    def _new_york_times_api(self, ):
+    def _new_york_times_api(self, validation : NewYorkTimesApi ) -> list[dict]:
         """News Retrieve Tool"""
-        return self.new_york_times_client.search(validation=NewYorkTimesApi)
+        return self.new_york_times_client.search(validation)
 
     def _technology_rss(self, validation: TechnologyRSSFeed) -> list[str]:
         """Technology RSS Feed"""
@@ -337,11 +345,11 @@ def main():
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     )
     #gpt-oss:120b-cloud
-    config = ModelConfig(model="qwen3:14b", model_provider_url=settings.OLLAMA_HOST, reasoning=False, use_cloud=False)
+    config = ModelConfig(model="qwen3:4b", model_provider_url=settings.OLLAMA_HOST, reasoning=False, use_cloud=False)
     llm = config.get_llm()
     agent = VectorPressAgent(llm)
 
-    agent.ask(query="Did kamala harris win the last election? Use The Guardian Tool")
+    agent.ask(query="Did kamala harris win the last election? ")
     #can you multiple 15 and 764 by calling tools?
     #Who is Cristiano Ronaldo?
     #Can you fetch 200 articles about Ukraine and Russia war?

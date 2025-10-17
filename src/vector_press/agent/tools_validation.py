@@ -48,6 +48,7 @@ class TavilySearch(Query):
 
 class TheGuardianApi(Query):
     """
+    This is The Guardian API
     Use this tool for GENERAL NEWS searches (world, politics, business, culture, etc.).
 
     When to use:
@@ -71,6 +72,7 @@ class TheGuardianApi(Query):
 
 class NewYorkTimesApi(Query):
     """
+    This is New York Times API.
     Use this tool for GENERAL NEWS searches (world, politics, business, culture, etc.).
 
     When to use:

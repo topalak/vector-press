@@ -2,10 +2,9 @@ from abc import ABC, abstractmethod
 
 from typing import Dict
 #from datetime import datetime
-import time
 import requests
 
-from src.vector_press.agent.tools_validation import (TheGuardianApi, NewYorkTimeApi)
+from src.vector_press.agent.tools_validation import (TheGuardianApi, NewYorkTimesApi)
 
 from config import settings
 
@@ -72,6 +71,12 @@ class BaseNewsAPIClient(ABC):   # ABC = Abstract Base Class, ABC prevents creati
     def search(self, validation) -> Dict:
         pass
 
+    #@abstractmethod
+    #def _extract_article_text(self, article_data: Dict) -> Dict:
+      #  """ Extract and clean text from API source's article response """
+      #  pass
+
+
 class GuardianAPIClient(BaseNewsAPIClient):
     def __init__(self):
         super().__init__(
@@ -79,7 +84,7 @@ class GuardianAPIClient(BaseNewsAPIClient):
             base_url="https://content.guardianapis.com"
         )
 
-    def search(self, validation: TheGuardianApi) -> list[Dict] | None:
+    def search(self, validation: TheGuardianApi) -> list[dict] | None: #TODO check what data type does search method pass to the _extract_article_method
         """
         Search articles using validation object.
 
@@ -101,7 +106,7 @@ class GuardianAPIClient(BaseNewsAPIClient):
         try:
             for page in range(1, max_pages + 1):
                 params = {**base_params, "page": page}  #"**base_params" unpacks the dict
-                response = requests.get(endpoint, params=params, timeout=2)
+                response = requests.get(endpoint, params=params, timeout=1)
 
                 if response.status_code == 200:
                     api_data = response.json()
@@ -136,13 +141,26 @@ class NewYorkTimesAPIClient(BaseNewsAPIClient):
                          base_url= "https://api.nytimes.com/svc/search/v2/articlesearch.json?")
 
 
-    def search(self, validation: NewYorkTimeApi ) -> list[Dict] | None:
-        base_params = validation.model_dump()
-        base_params['api-key'] = self._api_key
+    def search(self, validation: NewYorkTimesApi ) -> list[Dict] | None:
+
         endpoint = f"{self._base_url}"
 
-        response = requests.get(url=endpoint, params=base_params, timeout=2)
+        base_params = validation.model_dump()
+        base_params['api-key'] = self._api_key
+
+        all_extracted_articles = []
+
+        def _extract_article_text(article_data: Dict) -> Dict:
+            """ Extract and clean text from API source's article response """
+            return []
+
+        response = requests.get(url=endpoint, params=base_params, timeout=1)
         if response.status_code == 200:
             api_data = response.json()
+            article_data = api_data.get('response', {}).get('docs', [])
 
-            article_data = api_data.get('response', {}).get('results', [])
+            for article, article_data in enumerate(article_data):
+                web_url = article_data.get('web_url', '')
+                response_of_article = requests.get(url=web_url)
+
+                extracted = _extract_article_text(article_data)
