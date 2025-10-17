@@ -5,7 +5,7 @@ from src.vector_press.agent.news_api_client import GuardianAPIClient, NewYorkTim
 from src.vector_press.agent.web_search_client import TavilyWebSearchClient
 from src.vector_press.agent.rss_client import TechnologyRSSClient, SportsRSSClient
 
-from src.vector_press.agent.tools_validation import TavilySearch, TheGuardianApi,NewYorkTimesApi, TechnologyRSSFeed, SportsRSSFeed, validate_data
+from src.vector_press.agent.tools import TavilySearch, TheGuardianApi,NewYorkTimesApi, TechnologyRSSFeed, SportsRSSFeed, validate_data
 
 from src.vector_press.model_config import ModelConfig
 from config import settings

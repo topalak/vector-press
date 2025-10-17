@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from config import settings
 from datetime import datetime
 from tavily import TavilyClient
-from vector_press.agent.tools_validation import TavilySearch
+from vector_press.agent.tools import TavilySearch
 
 
 

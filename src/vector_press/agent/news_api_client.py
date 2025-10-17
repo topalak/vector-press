@@ -4,7 +4,7 @@ from typing import Dict
 #from datetime import datetime
 import requests
 
-from src.vector_press.agent.tools_validation import (TheGuardianApi, NewYorkTimesApi)
+from src.vector_press.agent.tools import (TheGuardianApi, NewYorkTimesApi)
 
 from config import settings
 

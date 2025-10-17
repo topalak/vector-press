@@ -8,7 +8,7 @@ import numpy as np
 import requests
 from bs4 import BeautifulSoup
 
-from src.vector_press.agent.tools_validation import TechnologyRSSFeed, SportsRSSFeed
+from src.vector_press.agent.tools import TechnologyRSSFeed, SportsRSSFeed
 
 logger = logging.getLogger(__name__)
 
