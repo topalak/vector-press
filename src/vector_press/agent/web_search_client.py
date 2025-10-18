@@ -2,10 +2,6 @@ from abc import ABC, abstractmethod
 from config import settings
 from datetime import datetime
 from tavily import TavilyClient
-from vector_press.agent.tools import TavilySearch
-
-
-
 
 class BaseWebSearchClient(ABC):
     def __init__(self, api_key: str):
@@ -21,7 +17,7 @@ class TavilyWebSearchClient(BaseWebSearchClient):
         # Initialize the actual Tavily client here
         self.tavily_client = TavilyClient(api_key=self._api_key)
 
-    def search(self, validation : TavilySearch) -> list[str]:
+    def search(self, validation) -> list[str]:
         """Main search method - this is what agent.py should call"""
         try:
             query = validation.query
@@ -40,3 +36,7 @@ class TavilyWebSearchClient(BaseWebSearchClient):
         except Exception as e:
             print(f"Couldn't retrieve anything: {datetime.now().astimezone(tz=settings.TIME_ZONE)}")
             return [f"Web search failed: {str(e)}"]
+
+class LinkUpwebSearchClient(BaseWebSearchClient):
+    def __init__(self):
+        super().__init__(api_key=settings.ADD_LINKUPS_API_KEY)

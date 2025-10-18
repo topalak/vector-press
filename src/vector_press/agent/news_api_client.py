@@ -4,7 +4,6 @@ from typing import Dict
 #from datetime import datetime
 import requests
 
-from src.vector_press.agent.tools import (TheGuardianApi, NewYorkTimesApi)
 
 from config import settings
 
@@ -84,13 +83,15 @@ class GuardianAPIClient(BaseNewsAPIClient):
             base_url="https://content.guardianapis.com"
         )
 
-    def search(self, validation: TheGuardianApi) -> list[dict] | None: #TODO check what data type does search method pass to the _extract_article_method
+    def search(self, validation) -> list[dict] | None:
         """
         Search articles using validation object.
 
         Args:
             validation: GuardianSearchRequest object with search parameters
         """
+
+
 
         endpoint = f"{self._base_url}/search"
 
@@ -141,7 +142,7 @@ class NewYorkTimesAPIClient(BaseNewsAPIClient):
                          base_url= "https://api.nytimes.com/svc/search/v2/articlesearch.json?")
 
 
-    def search(self, validation: NewYorkTimesApi ) -> list[Dict] | None:
+    def search(self, validation) -> list[Dict] | None:
 
         endpoint = f"{self._base_url}"
 

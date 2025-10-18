@@ -5,7 +5,7 @@ from src.vector_press.agent.agent import VectorPressAgent, AgentState, _should_c
 from .news_api_client import GuardianAPIClient, BaseNewsAPIClient, _extract_article_text
 from .rss_client import TechnologyRSSClient, SportsRSSClient
 # Validation models
-from .tools import TavilySearch, TheGuardianApi, NewYorkTimesApi, TechnologyRSSFeed, SportsRSSFeed
+from .tools import TavilySearchSchema, TheGuardianApiSchema, NewYorkTimesApiSchema, TechnologyRSSFeedSchema, SportsRSSFeedSchema
 
 # Export all public classes and functions
 __all__ = [
@@ -21,10 +21,10 @@ __all__ = [
     "SportsRSSClient",
 
     # Validation models
-    "TavilySearch",
-    "TheGuardianApi",
-    "NewYorkTimesApi",
-    "TechnologyRSSFeed",
-    'SportsRSSFeed',
+    "TavilySearchSchema",
+    "TheGuardianApiSchema",
+    "NewYorkTimesApiSchema",
+    "TechnologyRSSFeedSchema",
+    'SportsRSSFeedSchema',
 
 ]

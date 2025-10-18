@@ -8,7 +8,6 @@ import numpy as np
 import requests
 from bs4 import BeautifulSoup
 
-from src.vector_press.agent.tools import TechnologyRSSFeed, SportsRSSFeed
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +34,7 @@ class BaseRSSClient(ABC):
                 })
         return all_entries
 
-    def _embed(self, all_entries: list[dict], validation: TechnologyRSSFeed):
+    def _embed(self, all_entries: list[dict], validation):
         base_parms = validation.model_dump()
         query = base_parms['query']
         query_embedding = self.embedding_model.embed_query(query)   #we changed the variable name because of these reasons
@@ -100,7 +99,7 @@ class BaseRSSClient(ABC):
             logger.warning(f"Failed to fetch article from {url}: {e}")
             return ""
 
-    def _search(self, feed_urls: list[str], validation: TechnologyRSSFeed) -> list[str]:
+    def _search(self, feed_urls: list[str], validation) -> list[str]:
         """
         Search RSS feeds and return full article contents above similarity threshold.
 
@@ -145,7 +144,7 @@ class TechnologyRSSClient(BaseRSSClient):
         self.feed_url = [
         "https://feeds.bbci.co.uk/news/technology/rss.xml",
     ]
-    def search(self, validation: TechnologyRSSFeed) -> list[str]:
+    def search(self, validation) -> list[str]:
         result = self._search(feed_urls = self.feed_url, validation=validation)
         return result
 
@@ -160,7 +159,7 @@ class SportsRSSClient(BaseRSSClient):
          "https://feeds.bbci.co.uk/sport/rss.xml",
     ]
 
-    def search(self, validation: SportsRSSFeed) -> list[str]:
+    def search(self, validation) -> list[str]:
         result = self._search(feed_urls = self.feed_url, validation=validation)
         return result
 
@@ -170,10 +169,8 @@ def main():
     embedding_model_config = ModelConfig(model="all-minilm:33m", model_provider_url=settings.OLLAMA_HOST)
     embedding_model = embedding_model_config.get_embedding()
     rss = TechnologyRSSClient(embedding_model=embedding_model)
-    a = rss.search(validation=TechnologyRSSFeed(query='cyber security'))
-    print(a)
-    # TODO try again after set the agent.py file. Probably there will be an error on validation
-
+    #a = rss.search(validation=TechnologyRSSFeed(query='cyber security'))
+    #print(a)
 
     return
 

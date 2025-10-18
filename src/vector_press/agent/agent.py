@@ -1,11 +1,13 @@
 from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
 from langgraph.graph import StateGraph, START, END
 
-from src.vector_press.agent.news_api_client import GuardianAPIClient, NewYorkTimesAPIClient  #TODO we need to handle it by invoking the BaseClient, that way is more elegant from this
-from src.vector_press.agent.web_search_client import TavilyWebSearchClient
-from src.vector_press.agent.rss_client import TechnologyRSSClient, SportsRSSClient
-
-from src.vector_press.agent.tools import TavilySearch, TheGuardianApi,NewYorkTimesApi, TechnologyRSSFeed, SportsRSSFeed, validate_data
+from src.vector_press.agent.tools import (TavilySearchSchema,
+                                          TheGuardianApiSchema,
+                                          NewYorkTimesApiSchema,
+                                          TechnologyRSSFeedSchema,
+                                          SportsRSSFeedSchema,
+                                          Tools,
+                                          validate_data,)
 
 from src.vector_press.model_config import ModelConfig
 from config import settings
@@ -17,16 +19,16 @@ from src.vector_press.agent.state import AgentState
 
 logger = logging.getLogger(__name__)
 
-pruning_llm_config = ModelConfig(model="qwen3:0.6b", model_provider_url=settings.OLLAMA_HOST)
-embedding_model_config = ModelConfig(model='all-minilm:33m', model_provider_url=settings.OLLAMA_HOST)
-
-#TODO You are NEWS assistant, update tool's definitions if user asks exactly "news" cart curt
+pruning_llm_config = ModelConfig(model="qwen3:0.6b",model_provider_url=settings.OLLAMA_HOST)
+embedding_model_config = ModelConfig(model='all-minilm:33m',model_provider_url=settings.OLLAMA_HOST)
 
 #TODO add new york times tool to system instruction
-INSTRUCTIONS = """You are a smart and helpful research assistant. Your name is Big Brother.
-
+INSTRUCTIONS = """You are a smart and helpful assistant. Your one and only mission is NEWS retrieving and answering based 
+query and retrieved items. Your name is Big Brother.
+Users will ask you about news, it could be politics, technology, AI, sport, business, world, recipe, general, whether, etc.
+It can be any news topic. 
 <task>
-Your job is using tools to perform user's commands and find related information to answer user's questions.
+Your job is using tools to perform user's commands and find related information to answer user's news questions.
 You can use any of the tools provided to you.
 You can call these tools in series or in parallel. Your functionality is conducted in a tool-calling loop.
 </task>
@@ -132,9 +134,7 @@ Instructions for pruning:
 
 Return the pruned content in a clear, concise format that maintains readability while focusing solely on what's needed to answer the user's request."""
 
-#TODO add response format for make it more reliable, because I have changed the model from llama3.2:3b to qwen3:8b output format is changed totally
-# response_format: This adds a node before END. This will call and LLM.with_structured_output and the output will be formatted to
-# match the given schema and returned in the 'structured_response' state key.
+#TODO add response format for make it more reliable, because I have changed the model from llama3.2:3b to qwen3:8b output format is changed totally, response_format: This adds a node before END. This will call and LLM.with_structured_output and the output will be formatted to match the given schema and returned in the 'structured_response' state key.
 
 class VectorPressAgent:
     """Handles Agent's processing and response generation"""
@@ -142,22 +142,24 @@ class VectorPressAgent:
     def __init__(self, llm):
         """Initialize agent with model and build graph."""
         self.pruning_llm = pruning_llm_config.get_llm()
-        self.embedding_model = embedding_model_config.get_embedding()
         self.llm = llm
 
-        self.tavily_search_client = TavilyWebSearchClient()
-        self.guardian_client = GuardianAPIClient()
-        self.new_york_times_client = NewYorkTimesAPIClient()
-        self.rss_client = TechnologyRSSClient(self.embedding_model)  # we are injecting the embedding model here
-        self.sports_client = SportsRSSClient(self.embedding_model)
+        # Initialize tools using the Tools class
+        self.tools = Tools()
 
-        tools = [TavilySearch, TheGuardianApi, NewYorkTimesApi, TechnologyRSSFeed, SportsRSSFeed]
-        self.structured_llm = self.llm.bind_tools(tools=tools)
+        tools_validation = [
+            TavilySearchSchema,
+            TheGuardianApiSchema,
+            NewYorkTimesApiSchema,
+            TechnologyRSSFeedSchema,
+            SportsRSSFeedSchema
+        ]
+        self.structured_llm = self.llm.bind_tools(tools=tools_validation)
 
-        self.state: AgentState = AgentState(  #check is there tools_call in default llm
+        self.state: AgentState = AgentState(
             context_window=[SystemMessage(content=INSTRUCTIONS)],
             query="",
-            meta_data = [],
+            meta_data=[],
         )
         self.app = self._build_graph()
 
@@ -165,8 +167,7 @@ class VectorPressAgent:
         """LLM call that handles both initial user input and continuation after tools"""
 
         start_time = time.time()
-        response = self.structured_llm.invoke(state.context_window)  #state AIMessage
-        #TODO we need to add sources and publication dates which news come from API's, structured output
+        response = self.structured_llm.invoke(state.context_window)
         end_time = time.time()
         elapsed_time = end_time - start_time
         logger.info(f"LLM response generation took {elapsed_time:.2f} seconds")
@@ -176,7 +177,11 @@ class VectorPressAgent:
 
     def _tools_call(self, state: AgentState) -> AgentState:
         """Execute tool calls and add results as ToolMessages"""
-
+        #tools_corresponding = {
+        #    "TheGuardianApi" : self.tools.guardian_api(),
+        #    "NewYorkTimesApi" : self.tools.new_york_times_api(),
+        #    "TavilySearch" : self.tools.tavily_web_search(),
+        #}
         raw_tool_result = ""  # TODO ask it to BBB, im getting error if i remove that variable
 
         for tool_call in state.context_window[-1].tool_calls:
@@ -185,10 +190,9 @@ class VectorPressAgent:
             args = tool_call.get("args", {})
 
             match tool_name:
-                case "TheGuardianApi":
+                case "TheGuardianApiSchema":
                     try:
-                        #raw_tool_result = self._search_guardian_articles(GuardianSearchRequest(**args))
-                        articles_data = self._guardian_api(validate_data(args,TheGuardianApi))
+                        articles_data = self.tools.guardian_api(validate_data(args, TheGuardianApiSchema))
 
                         # Store metadata for citations
                         if articles_data:
@@ -202,45 +206,31 @@ class VectorPressAgent:
 
                     except Exception as e:
                         logger.warning(f"Guardian API error: {e}")
-                        #TODO
-                        #try:
-                            #bbc search
-                        #except Exception as e:
-                            #logger.error(f"Both Guardian and BBC failed: {e}")
-                            #state.context_window.append(ToolMessage(
-                           # content="News sources unavailable",
-                           # name=tool_name,
-                            #tool_call_id=tool_call["id"]
-                            #))
-                            #continue
-                    #TODO you need to search error types to understand what kind of errors for tool calls. I need to update except block with those specific errors
-                    '''
-                case "NewYorkTimesApi":
+                        continue
+                case "NewYorkTimesApiSchema":
                     try:
-                        raw_tool_result = self._new_york_times_api(validate_data(args, NewYorkTimesApi))
+                        raw_tool_result = self.tools.new_york_times_api(validate_data(args, NewYorkTimesApiSchema))
                     except Exception as e:
                         logger.warning(f"NewYorkTimesAPI error: {e}")
-                    ''' #NewYorkTimesApi
-                case "TavilySearch":
+                        continue
+                case "TavilySearchSchema":
                     try:
-                        #raw_tool_result = self._tavily_web_search(TavilySearch(**args))  #this unpacks the args and validates them at the same time
-                        raw_tool_result = self._tavily_web_search(validate_data(args, TavilySearch))
+                        raw_tool_result = self.tools.tavily_web_search(validate_data(args, TavilySearchSchema))
                     except Exception as e:
                         logger.warning(f"Tavily API error: {e}")
-                        #TODO same try except block like above, use it linkup as alternative
                         continue
-                case "SportsRSSFeed":
+                case "SportsRSSFeedSchema":
                     try:
-                        #raw_tool_result = self._sports_rss(SportsRSSFeed(**args))
-                        raw_tool_result = self._sports_rss(validate_data(args, SportsRSSFeed))
+                        raw_tool_result = self.tools.sports_rss(validate_data(args, SportsRSSFeedSchema))
                     except Exception as e:
                         logger.warning(f"Sports API error: {e}")
-                case "TechnologyRSSFeed":
+                        continue
+                case "TechnologyRSSFeedSchema":
                     try:
-                        #raw_tool_result = self._technology_rss(TechnologyRSSFeed(**args))
-                        raw_tool_result = self._technology_rss(validate_data(args, TechnologyRSSFeed))
+                        raw_tool_result = self.tools.technology_rss(validate_data(args, TechnologyRSSFeedSchema))
                     except Exception as e:
                         logger.warning(f"Technology API error: {e}")
+                        continue
                 case _:
                     logger.warning(f"Unknown tool requested: {tool_name}")
                     raw_tool_result = f"Unknown tool: {tool_name}"
@@ -266,27 +256,6 @@ class VectorPressAgent:
                 ))
 
         return state
-
-    def _tavily_web_search(self, validation: TavilySearch) -> list[str]:
-        """Web Search Tool"""
-        return self.tavily_search_client.search(validation)
-
-    def _guardian_api(self, validation: TheGuardianApi) -> list[dict]:
-        """News Retrieve Tool"""
-        return self.guardian_client.search(validation)
-
-    def _new_york_times_api(self, validation : NewYorkTimesApi ) -> list[dict]:
-        """News Retrieve Tool"""
-        return self.new_york_times_client.search(validation)
-
-    def _technology_rss(self, validation: TechnologyRSSFeed) -> list[str]:
-        """Technology RSS Feed"""
-        return self.rss_client.search(validation)
-
-    def _sports_rss(self, validation: SportsRSSFeed) -> list[str]:
-        """Sports RSS Feed"""
-        return self.sports_client.search(validation=validation)
-
 
     def _build_graph(self):
         """Build and return the LangGraph pipeline (internal method)."""

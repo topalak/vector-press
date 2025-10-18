@@ -1,7 +1,17 @@
-import logging
-
 from pydantic import BaseModel, Field, ValidationError
 from typing import Literal
+from config import settings
+
+import logging
+from src.vector_press.model_config import ModelConfig
+
+from src.vector_press.agent.news_api_client import (
+    GuardianAPIClient,
+    NewYorkTimesAPIClient,
+)
+from src.vector_press.agent.web_search_client import TavilyWebSearchClient
+from src.vector_press.agent.rss_client import TechnologyRSSClient, SportsRSSClient
+
 
 #state is a Pydantic model (AgentState), not a dictionary. Pydantic models don't have a .get() method. we aren't able to pass it as dictionary like --> state['context_window'] we need to pass it like
 # state.context_window
@@ -21,7 +31,7 @@ class Query(BaseModel):
             #"Extract relevant keywords from user's query for semantic matching. "
             #"Keep it focused on 3-5 keywords for best results."
 
-class TavilySearch(Query):
+class TavilySearchSchema(Query):
     """
     Use this tool for GENERAL WEB SEARCHES and NON-CURRENT information queries.
 
@@ -46,7 +56,7 @@ class TavilySearch(Query):
             "'finance' - ONLY when query is about stocks, markets, trading, "
             "financial data, or economic indicators.")
 
-class TheGuardianApi(Query):
+class TheGuardianApiSchema(Query):
     """
     This is The Guardian API
     Use this tool for GENERAL NEWS searches (world, politics, business, culture, etc.).
@@ -70,7 +80,7 @@ class TheGuardianApi(Query):
     page_size: int = Field(default = 3, ge=1,le=50,
             description="Number of articles per page. ")
 
-class NewYorkTimesApi(Query):
+class NewYorkTimesApiSchema(Query):
     """
     This is New York Times API.
     Use this tool for GENERAL NEWS searches (world, politics, business, culture, etc.).
@@ -85,7 +95,7 @@ class NewYorkTimesApi(Query):
     If yes, use this tool.
     """
 
-class TechnologyRSSFeed(Query):
+class TechnologyRSSFeedSchema(Query):
     """
     Use this tool for TECHNOLOGY-RELATED CURRENT NEWS queries only.
 
@@ -96,7 +106,7 @@ class TechnologyRSSFeed(Query):
     Think first: Does the user want CURRENT TECHNOLOGY NEWS? If yes, use this tool.
     """
 
-class SportsRSSFeed(Query):
+class SportsRSSFeedSchema(Query):
     """
     Use this tool for SPORTS-RELATED CURRENT NEWS queries only.
 
@@ -106,3 +116,37 @@ class SportsRSSFeed(Query):
 
     Think first: Does the user want CURRENT SPORTS NEWS? If yes, use this tool.
     """
+
+
+class Tools:
+    def __init__(self):
+        embedding_model_config = ModelConfig(
+            model='all-minilm:33m',
+            model_provider_url=settings.OLLAMA_HOST
+        )
+        self.embedding_model = embedding_model_config.get_embedding()
+        self.tavily_search_client = TavilyWebSearchClient()
+        self.guardian_client = GuardianAPIClient()
+        self.new_york_times_client = NewYorkTimesAPIClient()
+        self.technology_rss_client = TechnologyRSSClient(embedding_model=self.embedding_model)
+        self.sports_rss_client = SportsRSSClient(embedding_model=self.embedding_model)
+
+    def tavily_web_search(self, validation: TavilySearchSchema) -> list[str]:
+        """Web Search Tool"""
+        return self.tavily_search_client.search(validation)
+
+    def guardian_api(self, validation: TheGuardianApiSchema) -> list[dict]:
+        """News Retrieve Tool"""
+        return self.guardian_client.search(validation)
+
+    def new_york_times_api(self, validation: NewYorkTimesApiSchema) -> list[dict]:
+        """News Retrieve Tool"""
+        return self.new_york_times_client.search(validation)
+
+    def technology_rss(self, validation: TechnologyRSSFeedSchema) -> list[str]:
+        """Technology RSS Feed"""
+        return self.technology_rss_client.search(validation)
+
+    def sports_rss(self, validation: SportsRSSFeedSchema) -> list[str]:
+        """Sports RSS Feed"""
+        return self.sports_rss_client.search(validation=validation)
