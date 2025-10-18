@@ -1,13 +1,14 @@
 from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
 from langgraph.graph import StateGraph, START, END
 
-from src.vector_press.agent.tools import (TavilySearchSchema,
-                                          TheGuardianApiSchema,
-                                          NewYorkTimesApiSchema,
-                                          TechnologyRSSFeedSchema,
-                                          SportsRSSFeedSchema,
-                                          Tools,
-                                          validate_data,)
+from src.vector_press.agent.tools import (
+    TavilySearchSchema,
+    TheGuardianApiSchema,
+    NewYorkTimesApiSchema,
+    TechnologyRSSFeedSchema,
+    SportsRSSFeedSchema,
+    Tools,
+)
 
 from src.vector_press.model_config import ModelConfig
 from config import settings
@@ -177,72 +178,33 @@ class VectorPressAgent:
 
     def _tools_call(self, state: AgentState) -> AgentState:
         """Execute tool calls and add results as ToolMessages"""
-        #tools_corresponding = {
-        #    "TheGuardianApi" : self.tools.guardian_api(),
-        #    "NewYorkTimesApi" : self.tools.new_york_times_api(),
-        #    "TavilySearch" : self.tools.tavily_web_search(),
-        #}
-        raw_tool_result = ""  # TODO ask it to BBB, im getting error if i remove that variable
 
         for tool_call in state.context_window[-1].tool_calls:
-            #TODO we except model makes parallel tool calls for API NEWS by using The Guardian and NYT
+            # TODO we except model makes parallel tool calls for API NEWS by using The Guardian and NYT
             tool_name = tool_call["name"]
             args = tool_call.get("args", {})
 
-            match tool_name:
-                case "TheGuardianApiSchema":
-                    try:
-                        articles_data = self.tools.guardian_api(validate_data(args, TheGuardianApiSchema))
+            try:
+                raw_tool_result = self.tools.execute_tool(tool_name, args)
 
-                        # Store metadata for citations
-                        if articles_data:
-                            for article in articles_data:
-                                state.meta_data.append({
-                                    "source": article.get("source", ""),
-                                    "publication_date": article.get("publication_date", ""),
-                                })
-                            # Extract only body_text for pruning
-                            raw_tool_result = [article.get("body_text", "") for article in articles_data]
+                if tool_name == "TheGuardianApiSchema":
+                    for article in raw_tool_result:
+                            state.meta_data.append({
+                                "source": article.get("source", ""),
+                                "publication_date": article.get("publication_date", "")
+                            })
 
-                    except Exception as e:
-                        logger.warning(f"Guardian API error: {e}")
-                        continue
-                case "NewYorkTimesApiSchema":
-                    try:
-                        raw_tool_result = self.tools.new_york_times_api(validate_data(args, NewYorkTimesApiSchema))
-                    except Exception as e:
-                        logger.warning(f"NewYorkTimesAPI error: {e}")
-                        continue
-                case "TavilySearchSchema":
-                    try:
-                        raw_tool_result = self.tools.tavily_web_search(validate_data(args, TavilySearchSchema))
-                    except Exception as e:
-                        logger.warning(f"Tavily API error: {e}")
-                        continue
-                case "SportsRSSFeedSchema":
-                    try:
-                        raw_tool_result = self.tools.sports_rss(validate_data(args, SportsRSSFeedSchema))
-                    except Exception as e:
-                        logger.warning(f"Sports API error: {e}")
-                        continue
-                case "TechnologyRSSFeedSchema":
-                    try:
-                        raw_tool_result = self.tools.technology_rss(validate_data(args, TechnologyRSSFeedSchema))
-                    except Exception as e:
-                        logger.warning(f"Technology API error: {e}")
-                        continue
-                case _:
-                    logger.warning(f"Unknown tool requested: {tool_name}")
-                    raw_tool_result = f"Unknown tool: {tool_name}"
+                    raw_tool_result = [article.get("body_text", "") for article in raw_tool_result]
+
+            except Exception as e:
+                logger.warning(f"{tool_name} execution error: {e}")
+                continue
 
             if raw_tool_result:
-                raw_tool_result = '\n'.join(raw_tool_result)
-
-            if len(raw_tool_result) > 0:
-                #TODO ask BBB how to monitor what pruning_llm takes, I want to both approaches behaviour
+                # TODO ask BBB how to monitor what pruning_llm takes, I want to both approaches behaviour
                 start_time = time.time()
-                pruned_tool_result = self.pruning_llm.invoke([   #TODO we are invoking the llm and it is spending time and we can improve this llm calling by validating the response as 0 or 1, etc
-                    {"role": "system", "content": tool_pruning_prompt.format(user_request=state.query), },
+                pruned_tool_result = self.pruning_llm.invoke([#TODO we are invoking the llm and it is spending time and we can improve this llm calling by validating the response as 0 or 1, etc
+                    {"role": "system","content": tool_pruning_prompt.format(user_request=state.query)},
                     {"role": "user", "content": raw_tool_result},
                 ])
                 end_time = time.time()
@@ -267,7 +229,7 @@ class VectorPressAgent:
         graph.add_edge(START, 'llm_call')
         graph.add_conditional_edges(
             source='llm_call',
-            path=_should_continue,
+            path=self._should_continue,
             path_map={'continue': 'tools_call', 'end': END}
         )
         graph.add_edge('tools_call', 'llm_call')
@@ -295,16 +257,16 @@ class VectorPressAgent:
 
             query = input("\nYou: ").strip()
 
-
         return "No response generated"
 
-def _should_continue(state: AgentState):
-    """Determine whether to continue with tool calls or end"""
-    last_message = state.context_window[-1]
-    if last_message.tool_calls:
-        return 'continue'
-    else:
-        return 'end'
+    @staticmethod
+    def _should_continue(state: AgentState):
+        """Determine whether to continue with tool calls or end"""
+        last_message = state.context_window[-1]
+        if last_message.tool_calls:
+            return 'continue'
+        else:
+            return 'end'
 
 def main():
 

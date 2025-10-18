@@ -27,11 +27,10 @@ def _extract_article_text(article_data: Dict) -> Dict | None:
         source = article_data.get("webUrl", "")
         publication_date = article_data.get("webPublicationDate", "")
         # Extract fields if available
-        fields = article_data.get("fields", {})  #we are getting whole fields dict from article_data
+        fields = article_data.get("fields", {})
         body_text = fields.get("bodyText", "")
 
         # Combine all text content
-        # TODO ask BBB can we type it more elegant way
         full_text = {
             "source" : source,
             "publication_date" : publication_date,
@@ -53,7 +52,6 @@ def _extract_article_text(article_data: Dict) -> Dict | None:
             #"char_count": char_count,
             #"fetch_time": datetime.now().isoformat()
         }
-        # TODO this is where i left, i have returned dict but, I didn't fix after that method which is at line 111
         return full_text
             #'metadata': meta_data
 

@@ -131,6 +131,36 @@ class Tools:
         self.technology_rss_client = TechnologyRSSClient(embedding_model=self.embedding_model)
         self.sports_rss_client = SportsRSSClient(embedding_model=self.embedding_model)
 
+        # Tool registry: maps schema class to (handler_method, schema_class)
+        self.tool_registry = {
+            "TavilySearchSchema": (self.tavily_web_search, TavilySearchSchema),
+            "TheGuardianApiSchema": (self.guardian_api, TheGuardianApiSchema),
+            "NewYorkTimesApiSchema": (self.new_york_times_api, NewYorkTimesApiSchema),
+            "TechnologyRSSFeedSchema": (self.technology_rss, TechnologyRSSFeedSchema),
+            "SportsRSSFeedSchema": (self.sports_rss, SportsRSSFeedSchema),
+        }
+
+    def execute_tool(self, tool_name: str, args: dict):
+        """
+        Execute a tool by name with validation.
+
+        Args:
+            tool_name: Name of the tool schema (e.g., "TavilySearchSchema")
+            args: Dictionary of arguments to validate and pass to the tool
+
+        Returns:
+            Tool execution result
+
+        Raises:
+            ValueError: If tool_name is not registered
+        """
+        if tool_name not in self.tool_registry:
+            raise ValueError(f"Unknown tool: {tool_name}")
+
+        handler, schema = self.tool_registry[tool_name]
+        validated_args = validate_data(args, schema)
+        return handler(validated_args)
+
     def tavily_web_search(self, validation: TavilySearchSchema) -> list[str]:
         """Web Search Tool"""
         return self.tavily_search_client.search(validation)

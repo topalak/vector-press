@@ -20,14 +20,12 @@ class TavilyWebSearchClient(BaseWebSearchClient):
     def search(self, validation) -> list[str]:
         """Main search method - this is what agent.py should call"""
         try:
-            query = validation.query
-            max_results = validation.max_results
-            topic = validation.topic
+            base_params = validation.model_dump()
 
             response = self.tavily_client.search(
-                query=query,
-                max_results=max_results,
-                topic=topic,
+                query=base_params['query'],
+                max_results=base_params['max_results'],
+                topic=base_params['topic'],
             )
             # Extract all content values
             contents = [result['content'] for result in response['results']]
