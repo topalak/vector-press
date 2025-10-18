@@ -10,7 +10,7 @@ class AgentState(BaseModel):
     context_window: list[BaseMessage]  #typing.Annotated allows you to attach arbitrary metadata to a type hint, here is add_messsages
     # and Sequence is a type hint for an ordered, immutable collection (like list or tuple) that can be iterated over.
 
-    query: Union[str,BaseMessage,int] #query can be a str or a BaseMessage, it's not a list we want only str or BaseMessage
+    query: Union[str,BaseMessage] #query can be a str or a BaseMessage, it's not a list we want only str or BaseMessage
     #pruned_message: Annotated[ToolMessage, add_messages] | None
 
     meta_data: list[dict]

@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 
 pruning_llm_config = ModelConfig(model="qwen3:0.6b",model_provider_url=settings.OLLAMA_HOST)
 embedding_model_config = ModelConfig(model='all-minilm:33m',model_provider_url=settings.OLLAMA_HOST)
+#embeddinggemma:latest
 
 #TODO add new york times tool to system instruction
 INSTRUCTIONS = """You are a smart and helpful assistant. Your one and only mission is NEWS retrieving and answering based 
@@ -37,7 +38,7 @@ You can call these tools in series or in parallel. Your functionality is conduct
 <available_tools>
 You have access to 4 specialized tools. Choose carefully based on the user's intent:
 
-1. **TechnologyRSSFeed** - Current Technology News
+1. **TechnologyRSSFeedSchema** - Current Technology News
    Use when:
    - User asks about recent tech news (e.g., "latest AI developments", "new iPhone release")
    - User wants current events in: AI, cybersecurity, startups, tech products, semiconductors
@@ -48,7 +49,7 @@ You have access to 4 specialized tools. Choose carefully based on the user's int
 
    Think first: Does the user want CURRENT TECHNOLOGY NEWS? If yes, use this tool.
 
-2. **SportsRSSFeed** - Current Sports News
+2. **SportsRSSFeedSchema** - Current Sports News
    Use when:
    - User asks about recent sports news 
    - User wants current events in: football, basketball, tennis, cricket, olympics, motorsports
@@ -59,7 +60,7 @@ You have access to 4 specialized tools. Choose carefully based on the user's int
 
    Think first: Does the user want CURRENT SPORTS NEWS? If yes, use this tool.
  
-3. **GuardianSearchRequest** - General News Archive
+3. **TheGuardianApiSchema** - General News Archive
    Use when:
    - User asks for news about world events, politics, or general current affairs
    - User wants business news, economics, or corporate stories
@@ -73,7 +74,7 @@ You have access to 4 specialized tools. Choose carefully based on the user's int
 
    Think first: Is this a general news query (politics, world, business, culture)? If yes, use this tool.
 
-4. **TavilySearch** - General Web Search
+4. **TavilySearchSchema** - General Web Search
    Use when:
    - User asks for tutorials, guides, or how-to information (e.g., "how to learn Python")
    - User wants historical information (e.g., "history of Bitcoin", "what is quantum computing")
@@ -183,6 +184,8 @@ class VectorPressAgent:
             # TODO we except model makes parallel tool calls for API NEWS by using The Guardian and NYT
             tool_name = tool_call["name"]
             args = tool_call.get("args", {})
+            #TODO LLM had generated the parameters of tool's till here, but we need to re-write the query for more robust news specially API calls, and it needs to generate queries each RSS and Api calls
+            # because they act different
 
             try:
                 raw_tool_result = self.tools.execute_tool(tool_name, args)
@@ -200,7 +203,7 @@ class VectorPressAgent:
                 logger.warning(f"{tool_name} execution error: {e}")
                 continue
 
-            if raw_tool_result:
+            if not tool_name == "TavilySearchSchema":
                 # TODO ask BBB how to monitor what pruning_llm takes, I want to both approaches behaviour
                 start_time = time.time()
                 pruned_tool_result = self.pruning_llm.invoke([#TODO we are invoking the llm and it is spending time and we can improve this llm calling by validating the response as 0 or 1, etc
@@ -216,6 +219,10 @@ class VectorPressAgent:
                     name=tool_name,
                     tool_call_id=tool_call["id"]
                 ))
+            elif tool_name == "TavilySearchSchema":
+                state.context_window.append(ToolMessage(content=raw_tool_result,
+                                                        name=tool_name,
+                                                        tool_call_id=tool_call["id"]))
 
         return state
 
@@ -276,11 +283,11 @@ def main():
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     )
     #gpt-oss:120b-cloud
-    config = ModelConfig(model="qwen3:4b", model_provider_url=settings.OLLAMA_HOST, reasoning=False, use_cloud=False)
+    config = ModelConfig(model="gpt-oss:120b-cloud", model_provider_url=settings.OLLAMA_HOST, reasoning=False, use_cloud=True)
     llm = config.get_llm()
     agent = VectorPressAgent(llm)
 
-    agent.ask(query="Did kamala harris win the last election? ")
+    agent.ask(query="I want to buy Imac mini m4, what do you think? should I buy it? Use TavilySearchSchema?")
     #can you multiple 15 and 764 by calling tools?
     #Who is Cristiano Ronaldo?
     #Can you fetch 200 articles about Ukraine and Russia war?
@@ -288,6 +295,8 @@ def main():
     #Can you fetch latest news about Ukraine and Russia war?
     #I want you to fetch latest news about new Mac Mini m4, I want to buy a new one
     #NBA results
+    #Did kamala harris win the last election?
+    #What is the rank of the Arsenal in Premier League?
 
 
     '''

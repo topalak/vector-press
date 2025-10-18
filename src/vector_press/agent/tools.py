@@ -1,20 +1,19 @@
 from pydantic import BaseModel, Field, ValidationError
 from typing import Literal
 from config import settings
-
 import logging
+
 from src.vector_press.model_config import ModelConfig
 
-from src.vector_press.agent.news_api_client import (
-    GuardianAPIClient,
-    NewYorkTimesAPIClient,
-)
+#Clients
+from src.vector_press.agent.news_api_client import GuardianAPIClient,NewYorkTimesAPIClient
 from src.vector_press.agent.web_search_client import TavilyWebSearchClient
 from src.vector_press.agent.rss_client import TechnologyRSSClient, SportsRSSClient
 
 
 #state is a Pydantic model (AgentState), not a dictionary. Pydantic models don't have a .get() method. we aren't able to pass it as dictionary like --> state['context_window'] we need to pass it like
 # state.context_window
+
 
 def validate_data(fields, actual_fields):
     try:
@@ -117,14 +116,29 @@ class SportsRSSFeedSchema(Query):
     Think first: Does the user want CURRENT SPORTS NEWS? If yes, use this tool.
     """
 
+class TavilyFactCheck(BaseModel):
+    """
+    Structured output for fact-checking Tavily search results.
+    LLM uses this schema to evaluate factual accuracy.
+    """
+    is_factual: bool = Field(description=
+            "True if the content appears factually accurate and reliable, "
+            "False if it contains misinformation, contradictions, or suspicious claims. "
+            "Earth is flat' → False" )
+
+    rating : int = Field(ge=0,le=10,description="I want you to rank the results depending on the quality of the content."
+                                     "please rate it 1-10")
+
 
 class Tools:
     def __init__(self):
-        embedding_model_config = ModelConfig(
-            model='all-minilm:33m',
-            model_provider_url=settings.OLLAMA_HOST
-        )
+        embedding_model_config = ModelConfig(model='all-minilm:33m',model_provider_url=settings.OLLAMA_HOST)
+        fact_check_llm_config = ModelConfig(model='gpt-oss:120b-cloud',model_provider_url=settings.OLLAMA_HOST, reasoning=False, use_cloud=True)
+
         self.embedding_model = embedding_model_config.get_embedding()
+        self.fact_check_llm = fact_check_llm_config.get_llm()
+        self.fact_check_structured_llm = self.fact_check_llm.bind_tools([TavilyFactCheck])
+
         self.tavily_search_client = TavilyWebSearchClient()
         self.guardian_client = GuardianAPIClient()
         self.new_york_times_client = NewYorkTimesAPIClient()
@@ -157,13 +171,74 @@ class Tools:
         if tool_name not in self.tool_registry:
             raise ValueError(f"Unknown tool: {tool_name}")
 
-        handler, schema = self.tool_registry[tool_name]
+        handler, schema = self.tool_registry[tool_name] #handler is our called tool
         validated_args = validate_data(args, schema)
         return handler(validated_args)
 
-    def tavily_web_search(self, validation: TavilySearchSchema) -> list[str]:
-        """Web Search Tool"""
-        return self.tavily_search_client.search(validation)
+    def tavily_web_search(self,validation: TavilySearchSchema) -> dict:
+        """
+        Web Search Tool with fact-checking.
+
+        Args:
+            validation: Validated Tavily search parameters
+        Returns:
+            dict with 'content' and 'fact_check' keys
+        """
+        search_results = self.tavily_search_client.search(validation)
+
+        validated_data = self._validate_result(search_results)
+
+        return {
+                "content" : search_results,
+                "validated" :validated_data
+                }
+
+
+
+    def _validate_result(self, tool_result:str ):
+        """
+        Validates the result of the tool.
+
+        Args:
+            tool_result : Result of the tool
+        Returns:
+
+        """
+
+
+        evaluating_prompt = f"""You are a fact-checking expert. Your job is to 
+        validate web search results for factual accuracy.
+                
+        Tavily Search Result:
+        {tool_result}
+        
+        Your task:
+        1. Identify any factual claims in the content
+        2. Check if claims contradict widely known facts (e.g., election results, 
+        historical events, scientific consensus)
+        3. Look for red flags: outdated info, speculation presented as fact, contradictions
+        4. Assign a confidence level
+        
+        Examples of red flags:
+        - "Trump won the 2020 election" (FALSE - Biden won)
+        - "Bitcoin was invented in 1995" (FALSE - 2008/2009)
+        - Mixing past events with future speculation
+        
+        Use the passed schema to return your structured assessment."""
+
+
+        after_validate = self.fact_check_structured_llm.invoke([
+            {"role" : "system", "content" : evaluating_prompt}
+        ])
+
+        if after_validate.tool_calls:
+            schema = tool_calls.get()
+
+
+
+        output_schema = after_validate.model_dump()
+        return output_schema
+
 
     def guardian_api(self, validation: TheGuardianApiSchema) -> list[dict]:
         """News Retrieve Tool"""

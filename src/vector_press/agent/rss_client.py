@@ -152,7 +152,7 @@ class TechnologyRSSClient(BaseRSSClient):
 class SportsRSSClient(BaseRSSClient):
     """Sports based RSS client"""
 
-    def __init__(self, embedding_model, similarity_threshold: float = 0.5):
+    def __init__(self, embedding_model, similarity_threshold: float = 0.35):
         super().__init__(similarity_threshold = similarity_threshold,embedding_model = embedding_model)
         self.feed_url = [
          "https://sports.yahoo.com/rss/",
