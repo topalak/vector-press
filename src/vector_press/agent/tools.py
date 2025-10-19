@@ -15,14 +15,6 @@ from src.vector_press.agent.rss_client import TechnologyRSSClient, SportsRSSClie
 # state.context_window
 
 
-def validate_data(fields, actual_fields):
-    try:
-        validated = actual_fields(**fields)
-        print(f"validated: {validated}")
-        return validated
-    except ValidationError as e:
-        logging.error(e)
-
 class Query(BaseModel):
     """This is base parameter"""
     query: str = Field(...,min_length=1,max_length=500,
@@ -116,28 +108,29 @@ class SportsRSSFeedSchema(Query):
     Think first: Does the user want CURRENT SPORTS NEWS? If yes, use this tool.
     """
 
-class TavilyFactCheck(BaseModel):
+class TavilyFactCheckSchema(BaseModel):
     """
     Structured output for fact-checking Tavily search results.
     LLM uses this schema to evaluate factual accuracy.
     """
-    is_factual: bool = Field(description=
+    is_results_factual: bool = Field(description=
             "True if the content appears factually accurate and reliable, "
             "False if it contains misinformation, contradictions, or suspicious claims. "
             "Earth is flat' → False" )
 
-    rating : int = Field(ge=0,le=10,description="I want you to rank the results depending on the quality of the content."
+    results_rating : int = Field(ge=0,le=10,description="I want you to rank the results depending on the quality of the content."
                                      "please rate it 1-10")
 
+    reasoning : str = Field(description='Explain why did you decide whether true or false?')
 
 class Tools:
     def __init__(self):
         embedding_model_config = ModelConfig(model='all-minilm:33m',model_provider_url=settings.OLLAMA_HOST)
-        fact_check_llm_config = ModelConfig(model='gpt-oss:120b-cloud',model_provider_url=settings.OLLAMA_HOST, reasoning=False, use_cloud=True)
+        fact_check_llm_config = ModelConfig(model='qwen3:4b',model_provider_url=settings.OLLAMA_HOST, reasoning=False, use_cloud=False)
 
         self.embedding_model = embedding_model_config.get_embedding()
         self.fact_check_llm = fact_check_llm_config.get_llm()
-        self.fact_check_structured_llm = self.fact_check_llm.bind_tools([TavilyFactCheck])
+        self.fact_check_structured_llm = self.fact_check_llm.bind_tools([TavilyFactCheckSchema])
 
         self.tavily_search_client = TavilyWebSearchClient()
         self.guardian_client = GuardianAPIClient()
@@ -172,39 +165,17 @@ class Tools:
             raise ValueError(f"Unknown tool: {tool_name}")
 
         handler, schema = self.tool_registry[tool_name] #handler is our called tool
-        validated_args = validate_data(args, schema)
+        validated_args = self.checks_args_true_or_not(args, schema)
         return handler(validated_args)
 
-    def tavily_web_search(self,validation: TavilySearchSchema) -> dict:
-        """
-        Web Search Tool with fact-checking.
-
-        Args:
-            validation: Validated Tavily search parameters
-        Returns:
-            dict with 'content' and 'fact_check' keys
-        """
-        search_results = self.tavily_search_client.search(validation)
-
-        validated_data = self._validate_result(search_results)
-
-        return {
-                "content" : search_results,
-                "validated" :validated_data
-                }
-
-
-
-    def _validate_result(self, tool_result:str ):
+    def _validate_result(self, tool_result:str ) -> dict:
         """
         Validates the result of the tool.
 
         Args:
             tool_result : Result of the tool
         Returns:
-
         """
-
 
         evaluating_prompt = f"""You are a fact-checking expert. Your job is to 
         validate web search results for factual accuracy.
@@ -231,14 +202,20 @@ class Tools:
             {"role" : "system", "content" : evaluating_prompt}
         ])
 
-        if after_validate.tool_calls:
-            schema = tool_calls.get()
+        tool_call = after_validate.tool_calls
+        args = tool_call[0].get("args", {})
+        return args
 
+    @staticmethod
+    def checks_args_true_or_not(current_fields, true_fields) -> BaseModel:
+        try:
+            validated = true_fields(**current_fields)
+            print(f"validated: {validated}")
+            return validated
+        except ValidationError as e:
+            logging.error(e)
 
-
-        output_schema = after_validate.model_dump()
-        return output_schema
-
+#########################  TOOL HANDLERS  ########################################
 
     def guardian_api(self, validation: TheGuardianApiSchema) -> list[dict]:
         """News Retrieve Tool"""
@@ -254,4 +231,22 @@ class Tools:
 
     def sports_rss(self, validation: SportsRSSFeedSchema) -> list[str]:
         """Sports RSS Feed"""
-        return self.sports_rss_client.search(validation=validation)
+        return self.sports_rss_client.search(validation)
+
+    def tavily_web_search(self,validation: TavilySearchSchema) -> dict:
+        """
+        Web Search Tool with fact-checking.
+
+        Args:
+            validation: Validated Tavily search parameters
+        Returns:
+            dict with 'content' and 'fact_check' keys
+        """
+        search_results = self.tavily_search_client.search(validation)
+        validated_data = self._validate_result(search_results)
+        validate_is_true = self.checks_args_true_or_not(validated_data, TavilyFactCheckSchema)
+
+        return {
+                "content" : search_results,
+                "validated" :validate_is_true
+                }

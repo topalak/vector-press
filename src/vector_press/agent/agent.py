@@ -223,6 +223,8 @@ class VectorPressAgent:
                 state.context_window.append(ToolMessage(content=raw_tool_result,
                                                         name=tool_name,
                                                         tool_call_id=tool_call["id"]))
+            else:
+                print("Unknown tool call")
 
         return state
 
@@ -283,7 +285,7 @@ def main():
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     )
     #gpt-oss:120b-cloud
-    config = ModelConfig(model="gpt-oss:120b-cloud", model_provider_url=settings.OLLAMA_HOST, reasoning=False, use_cloud=True)
+    config = ModelConfig(model="qwen3:4b", model_provider_url=settings.OLLAMA_HOST, reasoning=False, use_cloud=False)
     llm = config.get_llm()
     agent = VectorPressAgent(llm)
 
