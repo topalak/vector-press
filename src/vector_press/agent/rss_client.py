@@ -11,9 +11,9 @@ from bs4 import BeautifulSoup
 
 logger = logging.getLogger(__name__)
 
-
+# TODO we need to retrieve timestamps of articles to retrieve last 24 hours news
 class BaseRSSClient(ABC):
-    def __init__(self, embedding_model, similarity_threshold: float = 0.5,):
+    def __init__(self, embedding_model, similarity_threshold: float = 0.65,):
         self.similarity_threshold = similarity_threshold
         self.embedding_model = embedding_model
 
@@ -152,13 +152,13 @@ class TechnologyRSSClient(BaseRSSClient):
 class SportsRSSClient(BaseRSSClient):
     """Sports based RSS client"""
 
-    def __init__(self, embedding_model, similarity_threshold: float = 0.35):
+    def __init__(self, embedding_model, similarity_threshold: float = 0.65):
         super().__init__(similarity_threshold = similarity_threshold,embedding_model = embedding_model)
         self.feed_url = [
          "https://sports.yahoo.com/rss/",
          "https://feeds.bbci.co.uk/sport/rss.xml",
     ]
-
+#arsenal rank premier league
     def search(self, validation) -> list[str]:
         result = self._search(feed_urls = self.feed_url, validation=validation)
         return result

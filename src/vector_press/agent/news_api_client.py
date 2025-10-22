@@ -16,9 +16,8 @@ def _extract_article_text(article_data: Dict) -> Dict | None:
         article_data: Article data dictionary from Guardian API response
 
     Returns:
-        Dictionary containing:
-            - metadata: Article metadata (ID, title, publication date, etc.)
-            - content: Combined full text content
+        full_text: Combined dict with source, publication_date and body_text
+
         Returns None if extraction fails
     """
 
@@ -36,24 +35,7 @@ def _extract_article_text(article_data: Dict) -> Dict | None:
             "publication_date" : publication_date,
             "body_text" : body_text,
         }
-
-        # Create structured metadata
-        meta_data = {
-            #"article_id": article_id,
-            # Guardian API ID as article_id (e.g., "world/2022/oct/21/russia-ukraine-war-latest...")
-            #"title": title,
-            #"section": section_name,
-            #"publication_date": publication_date,
-            #"url": url,
-            #"summary": standfirst,
-            #"body_text": body_text,
-            #"trail_text": trail_text,
-            #"word_count": word_count,
-            #"char_count": char_count,
-            #"fetch_time": datetime.now().isoformat()
-        }
         return full_text
-            #'metadata': meta_data
 
     except Exception as e:
         print(f"🔥 [DEBUG] Error extracting article text: {e}")
@@ -89,8 +71,6 @@ class GuardianAPIClient(BaseNewsAPIClient):
             validation: GuardianSearchRequest object with search parameters
         """
 
-
-
         endpoint = f"{self._base_url}/search"
 
         base_params = validation.model_dump()
@@ -116,7 +96,6 @@ class GuardianAPIClient(BaseNewsAPIClient):
                         extracted = _extract_article_text(article_data)  #we will return dict
                         if extracted:
                             all_extracted_articles.append(extracted)
-                            print('ossuruk')
                         else:
                             print(f"[DEBUG] Failed to extract article {article + 1} from page {page}")
 

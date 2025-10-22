@@ -7,12 +7,16 @@ from src.vector_press.agent.tools import (
     NewYorkTimesApiSchema,
     TechnologyRSSFeedSchema,
     SportsRSSFeedSchema,
+    WriteTodos,
+    ReadTodos,
     Tools,
 )
-
+#TODO can you give me comprehensive summarization of last 24 hours,
+# TODO add langchain tracing
 from src.vector_press.model_config import ModelConfig
 from config import settings
 
+import os
 import logging
 import time
 
@@ -24,100 +28,105 @@ pruning_llm_config = ModelConfig(model="qwen3:0.6b",model_provider_url=settings.
 embedding_model_config = ModelConfig(model='all-minilm:33m',model_provider_url=settings.OLLAMA_HOST)
 #embeddinggemma:latest
 
+
+#You can call these tools in series or in parallel. Your functionality is conducted in a tool-calling loop.
 #TODO add new york times tool to system instruction
 INSTRUCTIONS = """You are a smart and helpful assistant. Your one and only mission is NEWS retrieving and answering based 
 query and retrieved items. Your name is Big Brother.
-Users will ask you about news, it could be politics, technology, AI, sport, business, world, recipe, general, whether, etc.
+Users will ask you about news, it can be politics, technology, AI, sport, business, world, recipe, general, whether, etc.
 It can be any news topic. 
+
 <task>
 Your job is using tools to perform user's commands and find related information to answer user's news questions.
 You can use any of the tools provided to you.
-You can call these tools in series or in parallel. Your functionality is conducted in a tool-calling loop.
 </task>
 
 <available_tools>
-You have access to 4 specialized tools. Choose carefully based on the user's intent:
 
-1. **TechnologyRSSFeedSchema** - Current Technology News
+1. **TavilySearchSchema** - General Web Search
+   Use for general information, historical data, tutorials, and fact-checking.
+
+2. **WriteTodos** - Task Planning and Progress Tracking
    Use when:
-   - User asks about recent tech news (e.g., "latest AI developments", "new iPhone release")
-   - User wants current events in: AI, cybersecurity, startups, tech products, semiconductors
+   1- User query contains MULTIPLE distinct tasks.
+   2- eger kullancinin girdigi islem buyuk bir arama kapsamli bir calisma istyiorsa bunu kucuk parcalara bolerek todolar yarat
+   
+3. **ReadTodos** - Review Current Task List
+   Use to check remaining pending tasks after completing a task.
 
-   Do NOT use when:
-   - User wants historical tech information (use TavilySearch)
-   - User wants tech tutorials or guides (use TavilySearch)
-
-   Think first: Does the user want CURRENT TECHNOLOGY NEWS? If yes, use this tool.
-
-2. **SportsRSSFeedSchema** - Current Sports News
-   Use when:
-   - User asks about recent sports news 
-   - User wants current events in: football, basketball, tennis, cricket, olympics, motorsports
-
-   Do NOT use when:
-   - User wants historical sports info or statistics (use TavilySearch)
-   - User wants sports guides or rules (use TavilySearch)
-
-   Think first: Does the user want CURRENT SPORTS NEWS? If yes, use this tool.
- 
-3. **TheGuardianApiSchema** - General News Archive
-   Use when:
-   - User asks for news about world events, politics, or general current affairs
-   - User wants business news, economics, or corporate stories
-   - User asks for culture, lifestyle, or opinion pieces
-   - User wants ARCHIVED news articles (Guardian has extensive archives)
-
-   Do NOT use when:
-   - User wants TECHNOLOGY news (try TechnologyRSSFeed first)
-   - User wants SPORTS news (try SportsRSSFeed first)
-   - User wants non-news information (use TavilySearch instead)
-
-   Think first: Is this a general news query (politics, world, business, culture)? If yes, use this tool.
-
-4. **TavilySearchSchema** - General Web Search
-   Use when:
-   - User asks for tutorials, guides, or how-to information (e.g., "how to learn Python")
-   - User wants historical information (e.g., "history of Bitcoin", "what is quantum computing")
-   - User asks about concepts, definitions, or explanations (e.g., "explain blockchain")
-   - User wants financial market data or analysis (set topic='finance')
-   - User asks for general knowledge not requiring current news
-
-   Do NOT use when:
-   - User explicitly asks for NEWS or CURRENT events
-   - User wants very recent/breaking news (use RSS feeds instead)
-
-FALLBACK STRATEGY:
-If RSS feeds return no results or insufficient information:
-   Step 1: Try GuardianSearchRequest for news-related queries
-   Step 2: If Guardian also fails, try TavilySearch as final fallback
 </available_tools>
 
-<decision_process>
-Before calling any tool, think through these questions:
+<workflow_for_multi_task_queries>
 
-1. What TYPE of information does the user want?
-   - Current news? → RSS feeds 
-   - Outdated or historical news? → GuardianSearchRequest
-   - Tutorials/guides, general information? → TavilySearch
+When user asks for MULTIPLE things in ONE query (e.g., "Fetch news about AI, Ukraine war, and NBA"):
 
-2. What DOMAIN is the query about?
-   - Technology news? → TechnologyRSSFeed
-   - Sports news? → SportsRSSFeed
-   - General news (politics, world, business)? → GuardianSearchRequest
-   - Everything else? → TavilySearch
+STEP 1: IDENTIFY & CREATE TODO LIST
+   Example: "Fetch news about AI developments, Ukraine war, and NBA results"
+   → Break into 3 separate tasks:
 
-3. How RECENT must the information be?
-   - Last 24-48 hours? → RSS feeds (TechnologyRSSFeed/SportsRSSFeed)
-   - Last week to months? → GuardianSearchRequest or TavilySearch
-   - Historical/timeless? → TavilySearch
-</decision_process>
+   Call WriteTodos with ALL tasks as 'pending':
+   {
+     "todos": [
+       {"content": "Fetch news about AI developments", "status": "pending"},
+       {"content": "Fetch news about Ukraine war", "status": "pending"},
+       {"content": "Fetch NBA results", "status": "pending"}
+     ]
+   }
 
-<response_quality>
-- Each response should ONLY use context that directly relates to the user's CURRENT question
-- Never mix information from previous unrelated queries unless the user explicitly requests it
-- If tool results are insufficient, acknowledge limitations rather than hallucinating
-- Synthesize information from multiple sources when relevant
-</response_quality>
+STEP 2: START FIRST TASK
+   → Call ReadTodos and understand which steps you have and what to do step by step. Begin your duty by first pending
+   step.
+   {
+     "todos": [
+       {"content": "Fetch news about AI developments", "status": "pending"},
+       {"content": "Fetch news about Ukraine war", "status": "pending"},
+       {"content": "Fetch NBA results", "status": "pending"}
+     ]
+   }
+   
+   
+STEP 3: START FIRST TASK
+   → Call WriteTodos and update your next step as "in_progress"
+   {
+     "todos": [
+       {"content": "Fetch news about AI developments", "status": "in_progress"},
+       {"content": "Fetch news about Ukraine war", "status": "pending"},
+       {"content": "Fetch NBA results", "status": "pending"}
+     ]
+   }
+
+STEP 4: EXECUTE THE TOOL
+   → Call TavilySearchSchema (or appropriate tool) to fetch news
+
+STEP 5: UPDATE TASK AFTER GETTING RESULT
+   After receiving ToolMessage result call WriteTodos to update the status of current step:
+   - If tool succeeded → Mark 'completed'
+   - If tool failed → Keep 'in_progress' and try again.
+
+   Call WriteTodos with updated status:
+   {
+     "todos": [
+       {"content": "Fetch news about AI developments", "status": "completed"},
+       {"content": "Fetch news about Ukraine war", "status": "pending"},
+       {"content": "Fetch NBA results", "status": "pending"}
+     ]
+   }
+
+STEP 6: CHECK REMAINING TASKS
+   → Call ReadTodos to see what's next
+
+STEP 7: REPEAT Steps 2-6 for each remaining task
+   Continue until ALL tasks are 'completed'
+
+</workflow_for_multi_task_queries>
+
+<critical_rules>
+- ALWAYS include the FULL todo list in WriteTodos (all tasks, not just changes)
+- ONLY ONE task should be 'in_progress' at a time
+- MUST call WriteTodos to update status AFTER receiving each tool result
+- Mark 'completed' based on actual tool success/failure
+- For SINGLE task queries, skip WriteTodos and use tools directly
+</critical_rules>
 """
 
 tool_pruning_prompt = """You are an expert at extracting relevant information from documents.
@@ -151,10 +160,12 @@ class VectorPressAgent:
 
         tools_validation = [
             TavilySearchSchema,
-            TheGuardianApiSchema,
-            NewYorkTimesApiSchema,
-            TechnologyRSSFeedSchema,
-            SportsRSSFeedSchema
+            #TheGuardianApiSchema,
+            #NewYorkTimesApiSchema,
+            #TechnologyRSSFeedSchema,
+            #SportsRSSFeedSchema,
+            WriteTodos,
+            ReadTodos,
         ]
         self.structured_llm = self.llm.bind_tools(tools=tools_validation)
 
@@ -162,6 +173,8 @@ class VectorPressAgent:
             context_window=[SystemMessage(content=INSTRUCTIONS)],
             query="",
             meta_data=[],
+            todos=[],
+            files="",  #TODO we need to offload the results into here
         )
         self.app = self._build_graph()
 
@@ -184,12 +197,25 @@ class VectorPressAgent:
             # TODO we except model makes parallel tool calls for API NEWS by using The Guardian and NYT
             tool_name = tool_call["name"]
             args = tool_call.get("args", {})
-            #TODO LLM had generated the parameters of tool's till here, but we need to re-write the query for more robust news specially API calls, and it needs to generate queries each RSS and Api calls
-            # because they act different
+            #TODO LLM had generated the parameters of tool's till here, but we need to re-write the query for more robust news specially API calls, and it needs to generate queries
+            # each RSS and Api calls because they act different
 
+            '''
+            raw_tool_result = self.tools.execute_tool(tool_name, args, state.query)
+
+            if tool_name == "TheGuardianApiSchema":
+                for article in raw_tool_result:
+                    state.meta_data.append({
+                        "source": article.get("source", ""),
+                        "publication_date": article.get("publication_date", "")
+                    })
+
+                raw_tool_result = [article.get("body_text", "") for article in raw_tool_result]
+            '''
+            #'''
             try:
-                raw_tool_result = self.tools.execute_tool(tool_name, args)
-
+                raw_tool_result = self.tools.execute_tool(tool_name, args, state)
+                '''
                 if tool_name == "TheGuardianApiSchema":
                     for article in raw_tool_result:
                             state.meta_data.append({
@@ -198,33 +224,29 @@ class VectorPressAgent:
                             })
 
                     raw_tool_result = [article.get("body_text", "") for article in raw_tool_result]
+                '''
+
+                if tool_name == "TavilySearchSchema":
+                    state.context_window.append(ToolMessage(content=raw_tool_result,
+                                                            name=tool_name,
+                                                            tool_call_id=tool_call["id"]))
+                elif tool_name == "WriteTodos":
+                    print(f"📝 Updated TODO list:\n{raw_tool_result}")
+                    state.context_window.append(ToolMessage(content=raw_tool_result,
+                                                            name=tool_name,
+                                                            tool_call_id=tool_call["id"]))
+                elif tool_name == "ReadTodos":
+                    print(f"📋 Current TODO list:\n{raw_tool_result}")
+                    state.context_window.append(ToolMessage(content=raw_tool_result,
+                                                            name=tool_name,
+                                                            tool_call_id=tool_call["id"]))
+                else:
+                    print(f"⚠️ Unknown tool call: {tool_name}")
+
 
             except Exception as e:
                 logger.warning(f"{tool_name} execution error: {e}")
                 continue
-
-            if not tool_name == "TavilySearchSchema":
-                # TODO ask BBB how to monitor what pruning_llm takes, I want to both approaches behaviour
-                start_time = time.time()
-                pruned_tool_result = self.pruning_llm.invoke([#TODO we are invoking the llm and it is spending time and we can improve this llm calling by validating the response as 0 or 1, etc
-                    {"role": "system","content": tool_pruning_prompt.format(user_request=state.query)},
-                    {"role": "user", "content": raw_tool_result},
-                ])
-                end_time = time.time()
-                elapsed_time = end_time - start_time
-                logger.info(f"Tool pruning took {elapsed_time:.2f} seconds")
-
-                state.context_window.append(ToolMessage(
-                    content=pruned_tool_result.content,
-                    name=tool_name,
-                    tool_call_id=tool_call["id"]
-                ))
-            elif tool_name == "TavilySearchSchema":
-                state.context_window.append(ToolMessage(content=raw_tool_result,
-                                                        name=tool_name,
-                                                        tool_call_id=tool_call["id"]))
-            else:
-                print("Unknown tool call")
 
         return state
 
@@ -278,6 +300,8 @@ class VectorPressAgent:
             return 'end'
 
 def main():
+    os.environ['LANGSMITH_API_KEY'] = getattr(settings, 'LANGSMITH_API_KEY', '')
+    os.environ['LANGSMITH_TRACING'] = getattr(settings, 'LANGSMITH_TRACING', 'false')
 
     # Configure logging to show in terminal
     logging.basicConfig(
@@ -285,11 +309,11 @@ def main():
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     )
     #gpt-oss:120b-cloud
-    config = ModelConfig(model="qwen3:4b", model_provider_url=settings.OLLAMA_HOST, reasoning=False, use_cloud=False)
+    config = ModelConfig(model="gpt-oss:120b-cloud", model_provider_url=settings.OLLAMA_HOST, reasoning=False, use_cloud=True)
     llm = config.get_llm()
     agent = VectorPressAgent(llm)
 
-    agent.ask(query="I want to buy Imac mini m4, what do you think? should I buy it? Use TavilySearchSchema?")
+    agent.ask(query="Fetch news about AI developments, Ukraine war, and NBA results?")
     #can you multiple 15 and 764 by calling tools?
     #Who is Cristiano Ronaldo?
     #Can you fetch 200 articles about Ukraine and Russia war?
@@ -300,13 +324,6 @@ def main():
     #Did kamala harris win the last election?
     #What is the rank of the Arsenal in Premier League?
 
-
-    '''
-    1- Cristiano Ronaldo
-    2- mac mini m4 launching 
-    3- NBA results
-    
-    '''
 #TODO there is a big problem that we are totally hoping the tools retrieve true answers but its not going like that. TavilySearch tool get the news which says kamala harris won the last selection.
 #TODO if user asks 2 different topics at the same query, we need to make different tool calls and i think we can handle it with planning tool
 if __name__ == '__main__':

@@ -82,6 +82,7 @@ class ModelConfig:
                 reasoning=self.reasoning,
                 temperature=self.temperature,
                 keep_alive="5m",
+                #research for response_format
             )
         else:
             # Use local Ollama

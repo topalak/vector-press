@@ -2,6 +2,7 @@ from typing import Annotated, Sequence, Union
 from pydantic import BaseModel
 from langchain_core.messages import BaseMessage, ToolMessage, AIMessage
 from langgraph.graph.message import add_messages
+from src.vector_press.agent.tools import ToDo
 
 #if we use annotated we can add something like reduce_list which it was a tool, it will like a description
 
@@ -16,3 +17,9 @@ class AgentState(BaseModel):
     meta_data: list[dict]
     #state is a Pydantic model (AgentState), not a dictionary. Pydantic models don't have a .get() method. we aren't able to pass it as dictionary like --> state['context_window'] we need to pass it like
 # state.context_window
+
+    todos: list[ToDo]
+    #todos: List of todo items for task planning and progress tracking
+
+    files: Union[str, dict, list]
+    #files: Virtual file system stored as dict mapping filenames to content
