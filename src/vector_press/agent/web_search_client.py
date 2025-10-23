@@ -18,7 +18,7 @@ class TavilyWebSearchClient(BaseWebSearchClient):
         self.tavily_client = TavilyClient(api_key=self._api_key)
 
     def search(self, validation) -> list[str]:
-        """Main search method - this is what agent.py should call"""
+        """Main search method - this is what base_agent.py should call"""
         try:
             base_params = validation.model_dump()
 

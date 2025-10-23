@@ -3,13 +3,17 @@ from typing import Literal
 from config import settings
 import logging
 
+# Import shared models first to avoid circular imports
+from src.vector_press.agent.models import ToDo
+
+# PlanningAgent imported lazily in Tools.__init__ to avoid circular import
 from src.vector_press.model_config import ModelConfig
 
 #Clients
 from src.vector_press.agent.news_api_client import GuardianAPIClient,NewYorkTimesAPIClient
 from src.vector_press.agent.web_search_client import TavilyWebSearchClient
-from src.vector_press.agent.rss_client import TechnologyRSSClient, SportsRSSClient
-from src.vector_press.agent.planning_tool import write_todos, read_todos
+#from src.vector_press.agent.rss_client import TechnologyRSSClient, SportsRSSClient
+# write_todos and read_todos imported lazily in Tools.__init__ to avoid circular import
 #from vector_press import AgentState
 
 
@@ -115,18 +119,68 @@ class SportsRSSFeedSchema(Query):
 
 
 
-
-class ToDo(BaseModel):
+class PlanningAgentSchema(BaseModel):
     """
-    A structured task item for tracking progress through complex workflows.
+    **Planning Agent - Intelligent Query Decomposition and Task Orchestration**
 
-    Attributes:
-        content: Short, specific description of the task
-        status: Current state - pending, in_progress, or completed
+    Use this tool when the user's request requires MULTIPLE distinct operations,
+    coordination across different data sources, or sequential task execution.
+
+    ## When to Use Planning Agent
+
+    ### ✅ USE when user query contains:
+
+    1. **Multiple Topics in One Query**
+       - "Fetch news about AI developments, Ukraine war, and NBA results"
+       - "Get me information on Bitcoin, Tesla stock, and climate change"
+
+    2. **Sequential Dependencies**
+       - "Find latest AI news, summarize it, then search for related research papers"
+       - "Get Ukraine war updates, then fetch historical context"
+       - Indicator: One task's result influences the next task
+
+    3. **Large Volume Requests**
+       - "Fetch 50+ articles about climate change from multiple sources"
+       - "Get comprehensive coverage of tech industry (AI, semiconductors, startups)"
+       - Indicator: Words like "comprehensive", "detailed", "all", large numbers
+
+    4. **Time-Consuming Multi-Step Operations**
+       - Need to fetch → filter → analyze → summarize
+       - Requires multiple API calls across different endpoints
+       - Indicator: Complex workflow that benefits from explicit task tracking
+
+    ## Decision Tree
+    ```
+    Does query mention multiple distinct topics/items?
+      ├─ YES → Use PlanningAgent
+      └─ NO → Single topic?
+            ├─ YES → Use appropriate tool directly
+            └─ NO → Complex workflow?
+                  ├─ YES → Use PlanningAgent
+                  └─ NO → Use appropriate tool directly
+    ```
+
+    ## Examples
+
+    ### ✅ Good Use Cases:
+
+    1. **Multi-Topic Query**
+       Input: "Get me news about SpaceX launches, Apple earnings, and Formula 1 results"
+       → Planning Agent creates 3 tasks (tech RSS, finance search, sports RSS)
+
+    2. **Cross-Source Research**
+       Input: "Find recent AI breakthroughs and compare with what Guardian reported"
+       → Planning Agent: Task 1 (Tavily Search), Task 2 (Guardian API), Task 3 (Compare)
+
+    3. **Comprehensive Coverage**
+       Input: "I want everything about the Trump trial - news, background, analysis"
+       → Planning Agent: Task 1 (Recent news), Task 2 (Historical context), Task 3 (Analysis)
     """
 
-    content : str
-    status : Literal['pending', 'in_progress', 'completed']
+    query: str = Field(
+        ...,
+        description="The original user query that needs to be decomposed into tasks"
+    )
 
 class WriteTodos(BaseModel):
     """
@@ -227,11 +281,14 @@ class SimpleReflectionSchema(BaseModel):
 
 class Tools:
     def __init__(self):
+        # Lazy imports to avoid circular dependency
+        from src.vector_press.agent.planning_agent import PlanningAgent, write_todos, read_todos
+
         embedding_model_config = ModelConfig(model="all-minilm:33m",model_provider_url=settings.OLLAMA_HOST)
         fact_check_llm_config = ModelConfig(model="gpt-oss:120b-cloud",model_provider_url=settings.OLLAMA_HOST, reasoning=False, use_cloud=True)
         query_rewriter_llm_config = ModelConfig(model="gpt-oss:120b-cloud",model_provider_url=settings.OLLAMA_HOST, reasoning=False, use_cloud=True)
 
-        self.embedding_model = embedding_model_config.get_embedding()
+        #self.embedding_model = embedding_model_config.get_embedding()
 
         self.fact_check_llm = fact_check_llm_config.get_llm()
         self.fact_check_structured_llm = self.fact_check_llm.bind_tools([SimpleReflectionSchema])
@@ -242,18 +299,20 @@ class Tools:
         self.tavily_search_client = TavilyWebSearchClient()
         self.guardian_client = GuardianAPIClient()
         self.new_york_times_client = NewYorkTimesAPIClient()
-        self.technology_rss_client = TechnologyRSSClient(embedding_model=self.embedding_model)
-        self.sports_rss_client = SportsRSSClient(embedding_model=self.embedding_model)
+        #self.technology_rss_client = TechnologyRSSClient(embedding_model=self.embedding_model)
+        #self.sports_rss_client = SportsRSSClient(embedding_model=self.embedding_model)
+        self.planning_agent = PlanningAgent(tools_instance=self)
 
         # Tool registry: maps schema class to (handler_method, schema_class)
         self.tool_registry = {  #REGISTERY
             "TavilySearchSchema": (self.tavily_web_search, TavilySearchSchema),
             "TheGuardianApiSchema": (self.guardian_api, TheGuardianApiSchema),
             "NewYorkTimesApiSchema": (self.new_york_times_api, NewYorkTimesApiSchema),
-            "TechnologyRSSFeedSchema": (self.technology_rss, TechnologyRSSFeedSchema),
-            "SportsRSSFeedSchema": (self.sports_rss, SportsRSSFeedSchema),
+            #"TechnologyRSSFeedSchema": (self.technology_rss, TechnologyRSSFeedSchema),
+            #"SportsRSSFeedSchema": (self.sports_rss, SportsRSSFeedSchema),
             "WriteTodos" : (write_todos, WriteTodos),
             "ReadTodos" : (read_todos, ReadTodos),
+            "PlanningAgentSchema": (self.planning_agent.execute, PlanningAgentSchema),
         }
 
     def execute_tool(self, tool_name: str, args: dict, state):
@@ -281,6 +340,8 @@ class Tools:
         # Planning tools need state access, other tools don't
         if tool_name in ["WriteTodos", "ReadTodos"]:
             return handler(state, validated_args)
+        elif tool_name in ["PlanningAgentSchema"]:
+            return handler(state)
         else:
             return handler(validated_args)
 
@@ -435,13 +496,13 @@ class Tools:
         """News Retrieve Tool"""
         return self.new_york_times_client.search(validation)
 
-    def technology_rss(self, validation: TechnologyRSSFeedSchema) -> list[str]:
-        """Technology RSS Feed"""
-        return self.technology_rss_client.search(validation)
+    #def technology_rss(self, validation: TechnologyRSSFeedSchema) -> list[str]:
+        #"""Technology RSS Feed"""
+        #return self.technology_rss_client.search(validation)
 
-    def sports_rss(self, validation: SportsRSSFeedSchema) -> list[str]:
-        """Sports RSS Feed"""
-        return self.sports_rss_client.search(validation)
+    #def sports_rss(self, validation: SportsRSSFeedSchema) -> list[str]:
+        #"""Sports RSS Feed"""
+       # return self.sports_rss_client.search(validation)
 
     def tavily_web_search(self,validation: TavilySearchSchema) -> dict:
         """
@@ -461,3 +522,7 @@ class Tools:
                 "content" : search_results,
                 "validated" :validate_is_true
                 }'''
+
+# TODO toollarin tamamina (gerekli olanlarin) reflection ekle, handlerlar icerisine, cunku ana classlarinin isi bu degil, _tools_call icerisinde yapmak da uygun olmayacak
+# TODO reflectionu da baska bir web search ile external ekleyebilirsin
+

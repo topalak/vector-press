@@ -128,7 +128,7 @@ You: exit
 ### Run as Python Module
 
 ```python
-from vector_press.agent.agent import VectorPressAgent
+from vector_press.agent.base_agent import VectorPressAgent
 
 # Initialize agent with your preferred model
 agent = VectorPressAgent(model_name='llama3.2:3b')

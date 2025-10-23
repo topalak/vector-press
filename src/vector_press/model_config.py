@@ -86,12 +86,9 @@ class ModelConfig:
             )
         else:
             # Use local Ollama
-            def load_ollama_model(model_name: str, ollama_url: str) -> None:
-                _check_and_pull_ollama_model(model_name=model_name, ollama_url=ollama_url)
-                ollama_client = Client(host=ollama_url)
-                ollama_client.generate(model=model_name)
-
-                load_ollama_model(model_name=self.model, ollama_url=self.model_provider_url)
+            _check_and_pull_ollama_model(model_name=self.model, ollama_url=self.model_provider_url)
+            ollama_client = Client(host=self.model_provider_url)
+            ollama_client.generate(model=self.model)
 
             return ChatOllama(  #let's wrap our model
                 model=self.model,
@@ -104,24 +101,19 @@ class ModelConfig:
             )
 
     def get_embedding(self):
-        #_check_and_pull_ollama_model(self.model_name, self.model_provider_url)
-        #ollama_client.embed(model=model_name)  #upload the llm to memory
-        def load_ollama_model(model_name: str, ollama_url: str) -> None:
-            _check_and_pull_ollama_model(model_name=model_name, ollama_url=ollama_url)
-            ollama_client = Client(host=ollama_url)
-            ollama_client.embed(model=model_name)
+        # Load embedding model if needed
+        _check_and_pull_ollama_model(model_name=self.model, ollama_url=self.model_provider_url)
+        ollama_client = Client(host=self.model_provider_url)
+        ollama_client.embed(model=self.model)
 
-
-        load_ollama_model(model_name=self.model, ollama_url=self.model_provider_url)
         return OllamaEmbeddings(
             model=self.model,
             base_url=self.model_provider_url,
-            keep_alive=2,
         )
 
 
 def main():
-    from vector_press.agent import VectorPressAgent  #avoiding circular import dependency, model_config.py: "I need VectorPressAgent first!" -> agent.py: "I need ModelConfig first!" -> model_config.py: "But I'm not finished loading!" ->  It will cause circular dependency error
+    from vector_press.agent import VectorPressAgent  #avoiding circular import dependency, model_config.py: "I need VectorPressAgent first!" -> base_agent.py: "I need ModelConfig first!" -> model_config.py: "But I'm not finished loading!" ->  It will cause circular dependency error
 
     config = ModelConfig(model='qwen3:8b', model_provider_url=settings.OLLAMA_HOST)
     #now when above line has invoked it creates a dict which contains model's parameters

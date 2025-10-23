@@ -4,30 +4,28 @@ from langgraph.graph import StateGraph, START, END
 from src.vector_press.agent.tools import (
     TavilySearchSchema,
     TheGuardianApiSchema,
-    NewYorkTimesApiSchema,
-    TechnologyRSSFeedSchema,
-    SportsRSSFeedSchema,
-    WriteTodos,
-    ReadTodos,
+    PlanningAgentSchema,
     Tools,
 )
+
 #TODO can you give me comprehensive summarization of last 24 hours,
 # TODO add langchain tracing
 from src.vector_press.model_config import ModelConfig
 from config import settings
 
-import os
 import logging
 import time
 
-from src.vector_press.agent.state import AgentState
+from src.vector_press.agent.states import AgentState
 
 logger = logging.getLogger(__name__)
-
-pruning_llm_config = ModelConfig(model="qwen3:0.6b",model_provider_url=settings.OLLAMA_HOST)
-embedding_model_config = ModelConfig(model='all-minilm:33m',model_provider_url=settings.OLLAMA_HOST)
 #embeddinggemma:latest
-
+#embedding_model_config = ModelConfig(model='all-minilm:33m',model_provider_url=settings.OLLAMA_HOST)
+tools_validation = [
+    TavilySearchSchema,
+    TheGuardianApiSchema,
+    PlanningAgentSchema,
+]
 
 #You can call these tools in series or in parallel. Your functionality is conducted in a tool-calling loop.
 #TODO add new york times tool to system instruction
@@ -41,93 +39,51 @@ Your job is using tools to perform user's commands and find related information 
 You can use any of the tools provided to you.
 </task>
 
-<available_tools>
+<available_agents>
 
-1. **TavilySearchSchema** - General Web Search
+1. **WebSearchAgent** - General Web Search
    Use for general information, historical data, tutorials, and fact-checking.
+   
+2. **TheGuardianApiAgent** - TheGuardianApi
+   Use for news related queries, this is safe source to fetch news
 
-2. **WriteTodos** - Task Planning and Progress Tracking
+3. **PlanningAgent**
    Use when:
    1- User query contains MULTIPLE distinct tasks.
-   2- eger kullancinin girdigi islem buyuk bir arama kapsamli bir calisma istyiorsa bunu kucuk parcalara bolerek todolar yarat
+   2- If user's query too complicate and it needs to break into smaller steps
+   3- Planning Agent has WebSearchAgent and TheGuardianApiAgent, 
    
-3. **ReadTodos** - Review Current Task List
-   Use to check remaining pending tasks after completing a task.
 
-</available_tools>
+</available_agents>
 
-<workflow_for_multi_task_queries>
 
-When user asks for MULTIPLE things in ONE query (e.g., "Fetch news about AI, Ukraine war, and NBA"):
+## Think Before You Plan
+Ask yourself:
+- Can I answer this with ONE tool call? → Don't use PlanningAgent
+- Do I need 2+ different tools? → Consider PlanningAgent
+- Are there multiple distinct topics? → Use PlanningAgent
+- Is this complex and multi-step? → Use PlanningAgent
+- Would breaking this down improve results? → Use PlanningAgent
 
-STEP 1: IDENTIFY & CREATE TODO LIST
-   Example: "Fetch news about AI developments, Ukraine war, and NBA results"
-   → Break into 3 separate tasks:
 
-   Call WriteTodos with ALL tasks as 'pending':
-   {
-     "todos": [
-       {"content": "Fetch news about AI developments", "status": "pending"},
-       {"content": "Fetch news about Ukraine war", "status": "pending"},
-       {"content": "Fetch NBA results", "status": "pending"}
-     ]
-   }
+### ❌ DO NOT USE PlanningAgent when:
 
-STEP 2: START FIRST TASK
-   → Call ReadTodos and understand which steps you have and what to do step by step. Begin your duty by first pending
-   step.
-   {
-     "todos": [
-       {"content": "Fetch news about AI developments", "status": "pending"},
-       {"content": "Fetch news about Ukraine war", "status": "pending"},
-       {"content": "Fetch NBA results", "status": "pending"}
-     ]
-   }
-   
-   
-STEP 3: START FIRST TASK
-   → Call WriteTodos and update your next step as "in_progress"
-   {
-     "todos": [
-       {"content": "Fetch news about AI developments", "status": "in_progress"},
-       {"content": "Fetch news about Ukraine war", "status": "pending"},
-       {"content": "Fetch NBA results", "status": "pending"}
-     ]
-   }
+1. **Single, Simple Query**
+   - "What's the latest AI news?" → Just use TechnologyRSSFeedSchema
+   - "NBA scores today" → Just use SportsRSSFeedSchema
+   - Can be answered with ONE tool call
 
-STEP 4: EXECUTE THE TOOL
-   → Call TavilySearchSchema (or appropriate tool) to fetch news
+2. **Trivial Operations**
+   - "Define artificial intelligence" → Just use TavilySearchSchema
+   - Quick fact-checking or single definition lookup
 
-STEP 5: UPDATE TASK AFTER GETTING RESULT
-   After receiving ToolMessage result call WriteTodos to update the status of current step:
-   - If tool succeeded → Mark 'completed'
-   - If tool failed → Keep 'in_progress' and try again.
+3. **Already Narrow and Specific**
+   - "Tesla stock price today" → Single search, no decomposition needed
 
-   Call WriteTodos with updated status:
-   {
-     "todos": [
-       {"content": "Fetch news about AI developments", "status": "completed"},
-       {"content": "Fetch news about Ukraine war", "status": "pending"},
-       {"content": "Fetch NBA results", "status": "pending"}
-     ]
-   }
-
-STEP 6: CHECK REMAINING TASKS
-   → Call ReadTodos to see what's next
-
-STEP 7: REPEAT Steps 2-6 for each remaining task
-   Continue until ALL tasks are 'completed'
-
-</workflow_for_multi_task_queries>
-
-<critical_rules>
-- ALWAYS include the FULL todo list in WriteTodos (all tasks, not just changes)
-- ONLY ONE task should be 'in_progress' at a time
-- MUST call WriteTodos to update status AFTER receiving each tool result
-- Mark 'completed' based on actual tool success/failure
-- For SINGLE task queries, skip WriteTodos and use tools directly
-</critical_rules>
-"""
+    **Remember:** Planning adds overhead. Only use when the benefits
+    (organization, completeness, quality) outweigh the cost (extra LLM calls,
+    context usage, execution time).
+    """
 
 tool_pruning_prompt = """You are an expert at extracting relevant information from documents.
 
@@ -145,41 +101,25 @@ Instructions for pruning:
 
 Return the pruned content in a clear, concise format that maintains readability while focusing solely on what's needed to answer the user's request."""
 
-#TODO add response format for make it more reliable, because I have changed the model from llama3.2:3b to qwen3:8b output format is changed totally, response_format: This adds a node before END. This will call and LLM.with_structured_output and the output will be formatted to match the given schema and returned in the 'structured_response' state key.
-
 class VectorPressAgent:
     """Handles Agent's processing and response generation"""
 
     def __init__(self, llm):
         """Initialize agent with model and build graph."""
-        self.pruning_llm = pruning_llm_config.get_llm()
         self.llm = llm
-
+        self.structured_llm = self.llm.bind_tools(tools=tools_validation)
         # Initialize tools using the Tools class
         self.tools = Tools()
-
-        tools_validation = [
-            TavilySearchSchema,
-            #TheGuardianApiSchema,
-            #NewYorkTimesApiSchema,
-            #TechnologyRSSFeedSchema,
-            #SportsRSSFeedSchema,
-            WriteTodos,
-            ReadTodos,
-        ]
-        self.structured_llm = self.llm.bind_tools(tools=tools_validation)
-
         self.state: AgentState = AgentState(
             context_window=[SystemMessage(content=INSTRUCTIONS)],
             query="",
             meta_data=[],
-            todos=[],
             files="",  #TODO we need to offload the results into here
         )
         self.app = self._build_graph()
 
     def _llm_call(self, state: AgentState) -> AgentState:
-        """LLM call that handles both initial user input and continuation after tools"""
+        """LLM call, makes tool call and responses to user's query if it needed"""
 
         start_time = time.time()
         response = self.structured_llm.invoke(state.context_window)
@@ -225,24 +165,13 @@ class VectorPressAgent:
 
                     raw_tool_result = [article.get("body_text", "") for article in raw_tool_result]
                 '''
-
-                if tool_name == "TavilySearchSchema":
-                    state.context_window.append(ToolMessage(content=raw_tool_result,
-                                                            name=tool_name,
-                                                            tool_call_id=tool_call["id"]))
-                elif tool_name == "WriteTodos":
-                    print(f"📝 Updated TODO list:\n{raw_tool_result}")
-                    state.context_window.append(ToolMessage(content=raw_tool_result,
-                                                            name=tool_name,
-                                                            tool_call_id=tool_call["id"]))
-                elif tool_name == "ReadTodos":
-                    print(f"📋 Current TODO list:\n{raw_tool_result}")
-                    state.context_window.append(ToolMessage(content=raw_tool_result,
-                                                            name=tool_name,
-                                                            tool_call_id=tool_call["id"]))
-                else:
-                    print(f"⚠️ Unknown tool call: {tool_name}")
-
+                    #take validation like
+                    #base_params = validation.model_dump()
+                    #base_params['query'] = state.query
+                    #llm in PlanningAgent icin uretecegi query'den kurtulacagiz
+                state.context_window.append(ToolMessage(content=raw_tool_result,
+                                                    tool_name=tool_name,
+                                                    tool_id=tool_call["id"]))
 
             except Exception as e:
                 logger.warning(f"{tool_name} execution error: {e}")
@@ -251,7 +180,7 @@ class VectorPressAgent:
         return state
 
     def _build_graph(self):
-        """Build and return the LangGraph pipeline (internal method)."""
+        """Build and return the LangGraph pipeline."""
         graph = StateGraph(AgentState)
 
         graph.add_node('llm_call', self._llm_call)
@@ -300,14 +229,16 @@ class VectorPressAgent:
             return 'end'
 
 def main():
-    os.environ['LANGSMITH_API_KEY'] = getattr(settings, 'LANGSMITH_API_KEY', '')
-    os.environ['LANGSMITH_TRACING'] = getattr(settings, 'LANGSMITH_TRACING', 'false')
 
     # Configure logging to show in terminal
     logging.basicConfig(
         level=logging.INFO,  # Show INFO, WARNING, ERROR
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     )
+
+    # Suppress noisy HTTP logs from httpx (used by Ollama client)
+    #logging.getLogger("httpx").setLevel(logging.WARNING)
+    #logging.getLogger("httpcore").setLevel(logging.WARNING)
     #gpt-oss:120b-cloud
     config = ModelConfig(model="gpt-oss:120b-cloud", model_provider_url=settings.OLLAMA_HOST, reasoning=False, use_cloud=True)
     llm = config.get_llm()
@@ -326,5 +257,7 @@ def main():
 
 #TODO there is a big problem that we are totally hoping the tools retrieve true answers but its not going like that. TavilySearch tool get the news which says kamala harris won the last selection.
 #TODO if user asks 2 different topics at the same query, we need to make different tool calls and i think we can handle it with planning tool
+
+#TODO we need to add summarizer when user wants comprehensive information (that means we need to fetch bigger sized pages)
 if __name__ == '__main__':
     main()

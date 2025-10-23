@@ -1,4 +1,4 @@
-from vector_press.agent.agent import VectorPressAgent
+from vector_press.agent.base_agent import VectorPressAgent
 
 agent = VectorPressAgent(model_name='llama3.2:3b')
 agent.ask('Can you fetch latest news about Ukraine and Russia?')
