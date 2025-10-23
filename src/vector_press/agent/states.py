@@ -16,7 +16,7 @@ class AgentState(BaseModel):
 
     meta_data: list[dict]
     #state is a Pydantic model (AgentState), not a dictionary. Pydantic models don't have a .get() method. we aren't able to pass it as dictionary like --> state['context_window'] we need to pass it like
-# state.context_window
+    #state.context_window
 
     files: Union[str, dict, list]
     #files: Virtual file system stored as dict mapping filenames to content

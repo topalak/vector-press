@@ -75,7 +75,7 @@ class GuardianAPIClient(BaseNewsAPIClient):
 
         base_params = validation.model_dump()
         base_params["q"] = base_params.pop("query")  #pop removes the key and return its value
-        base_params["show-fields"] = base_params.pop("show_fields")
+        base_params["show-fields"] = "all"
         base_params["page-size"] = base_params.pop("page_size")
         base_params["api-key"] = self._api_key
 

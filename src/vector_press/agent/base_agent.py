@@ -47,7 +47,7 @@ You can use any of the tools provided to you.
 2. **TheGuardianApiAgent** - TheGuardianApi
    Use for news related queries, this is safe source to fetch news
 
-3. **PlanningAgent**
+3. **PlanningAgentSchema**
    Use when:
    1- User query contains MULTIPLE distinct tasks.
    2- If user's query too complicate and it needs to break into smaller steps
@@ -59,14 +59,14 @@ You can use any of the tools provided to you.
 
 ## Think Before You Plan
 Ask yourself:
-- Can I answer this with ONE tool call? → Don't use PlanningAgent
-- Do I need 2+ different tools? → Consider PlanningAgent
-- Are there multiple distinct topics? → Use PlanningAgent
-- Is this complex and multi-step? → Use PlanningAgent
-- Would breaking this down improve results? → Use PlanningAgent
+- Can I answer this with ONE tool call? → Don't use PlanningAgentSchema
+- Do I need 2+ different tools? → Consider PlanningAgentSchema
+- Are there multiple distinct topics? → Use PlanningAgentSchema
+- Is this complex and multi-step? → Use PlanningAgentSchema
+- Would breaking this down improve results? → Use PlanningAgentSchema
 
 
-### ❌ DO NOT USE PlanningAgent when:
+### ❌ DO NOT USE PlanningAgentSchema when:
 
 1. **Single, Simple Query**
    - "What's the latest AI news?" → Just use TechnologyRSSFeedSchema
@@ -80,7 +80,7 @@ Ask yourself:
 3. **Already Narrow and Specific**
    - "Tesla stock price today" → Single search, no decomposition needed
 
-    **Remember:** Planning adds overhead. Only use when the benefits
+    **Remember:** PlanningAgentSchema adds overhead. Only use when the benefits
     (organization, completeness, quality) outweigh the cost (extra LLM calls,
     context usage, execution time).
     """
@@ -169,12 +169,19 @@ class VectorPressAgent:
                     #base_params = validation.model_dump()
                     #base_params['query'] = state.query
                     #llm in PlanningAgent icin uretecegi query'den kurtulacagiz
+
+                # Convert result to string if it's not already
+                if not isinstance(raw_tool_result, str):
+                    raw_tool_result = str(raw_tool_result)
+
                 state.context_window.append(ToolMessage(content=raw_tool_result,
                                                     tool_name=tool_name,
                                                     tool_id=tool_call["id"]))
-
+                print('ossuruk')
             except Exception as e:
                 logger.warning(f"{tool_name} execution error: {e}")
+                import traceback
+                traceback.print_exc()
                 continue
 
         return state

@@ -47,7 +47,7 @@ class TavilySearchSchema(Query):
             "Use 2-3 for quick answers, 5-10 for comprehensive research, "
             "10+ for deep exploration.")
 
-    topic: Literal['general', 'finance'] = Field(
+    topic: Literal['general', 'finance', 'news'] = Field(
         default='general',description=
             "Search topic type: "
             "'general' - for most queries (tech, science, tutorials, concepts). "
@@ -68,7 +68,6 @@ class TheGuardianApiSchema(Query):
     Think first: Is this a general news query (politics, world, business, culture)?
     If yes, use this tool.
     """
-    show_fields: Literal['all'] = Field(default='all', description="Field names to show")
     #section: Optional[str] = Field(default=None, description="Guardian section (e.g., 'world', 'politics', 'business', 'technology')")  #section is messing up the results lets comment it
     max_pages: int = Field(default=1,ge=1,le=20,
             description="Number of pages to fetch. "
@@ -284,7 +283,7 @@ class Tools:
         # Lazy imports to avoid circular dependency
         from src.vector_press.agent.planning_agent import PlanningAgent, write_todos, read_todos
 
-        embedding_model_config = ModelConfig(model="all-minilm:33m",model_provider_url=settings.OLLAMA_HOST)
+        #embedding_model_config = ModelConfig(model="all-minilm:33m",model_provider_url=settings.OLLAMA_HOST)
         fact_check_llm_config = ModelConfig(model="gpt-oss:120b-cloud",model_provider_url=settings.OLLAMA_HOST, reasoning=False, use_cloud=True)
         query_rewriter_llm_config = ModelConfig(model="gpt-oss:120b-cloud",model_provider_url=settings.OLLAMA_HOST, reasoning=False, use_cloud=True)
 
@@ -311,7 +310,7 @@ class Tools:
             #"TechnologyRSSFeedSchema": (self.technology_rss, TechnologyRSSFeedSchema),
             #"SportsRSSFeedSchema": (self.sports_rss, SportsRSSFeedSchema),
             "WriteTodos" : (write_todos, WriteTodos),
-            "ReadTodos" : (read_todos, ReadTodos),
+            #"ReadTodos" : (read_todos, ReadTodos),
             "PlanningAgentSchema": (self.planning_agent.execute, PlanningAgentSchema),
         }
 
@@ -335,13 +334,18 @@ class Tools:
         #args['query'] = re_written_args
        # print(args)
         handler, schema = self.tool_registry[tool_name] #handler is our called tool
+
+        # Special handling for PlanningAgentSchema - skip validation, pass state directly
+        if tool_name == "PlanningAgentSchema":
+            query = state.query
+            print(query)
+            return handler(query)
+
         validated_args = self.checks_args_true_or_not(current_fields=args,true_fields=schema)
 
         # Planning tools need state access, other tools don't
         if tool_name in ["WriteTodos", "ReadTodos"]:
             return handler(state, validated_args)
-        elif tool_name in ["PlanningAgentSchema"]:
-            return handler(state)
         else:
             return handler(validated_args)
 
