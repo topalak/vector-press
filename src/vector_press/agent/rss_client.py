@@ -13,9 +13,6 @@ logger = logging.getLogger(__name__)
 
 # TODO we need to retrieve timestamps of articles to retrieve last 24 hours news
 class BaseRSSClient(ABC):
-    def __init__(self, embedding_model, similarity_threshold: float = 0.65,):
-        self.similarity_threshold = similarity_threshold
-        self.embedding_model = embedding_model
 
     @staticmethod
     def _fetch_feed(feed_urls: list[str]) -> List[Dict]:  # When you define a method in the base class at the class level (not inside __init__), it's automatically available to all subclasses.
@@ -27,10 +24,12 @@ class BaseRSSClient(ABC):
                 logger.warning(f"Bozo failed to fetch feed {feed_url} : {feed.bozo_exception}")
 
             for entry_idx, entry in enumerate(feed.entries):
-                text = f"{entry['title']} {entry['summary']}"
                 all_entries.append({
-                    'title_and_summary': text,
                     'link': entry.link,
+                    'title': entry.get('title', ''),
+                    #'description': entry.get('summary', ''),
+                    'published': entry.get('published', ''),
+                    #'feed_url': feed_url,
                 })
         return all_entries
 
@@ -99,7 +98,7 @@ class BaseRSSClient(ABC):
             logger.warning(f"Failed to fetch article from {url}: {e}")
             return ""
 
-    def _search(self, feed_urls: list[str], validation) -> list[str]:
+    def _search(self, feed_urls: list[str], validation) -> list[Dict]:
         """
         Search RSS feeds and return full article contents above similarity threshold.
 
@@ -110,6 +109,14 @@ class BaseRSSClient(ABC):
         Returns:
             List of full article text contents for items above threshold
         """
+
+        all_entries = self._fetch_feed(feed_urls)
+
+        logger.info(f"Retrieved {len(all_entries)} entries from {len(feed_urls)} feed(s)")
+
+        return all_entries
+
+        '''
         all_entries = self._fetch_feed(feed_urls)
         query, entries = self._embed(all_entries=all_entries, validation=validation)
         filtered_indices, filtered_scores = self._cosine_similarity(entries=entries, query=query)
@@ -134,17 +141,27 @@ class BaseRSSClient(ABC):
         )
 
         return article_contents
+        '''
 
 class TechnologyRSSClient(BaseRSSClient):
     """Technology based RSS client"""
     #validation_instance = TechnologyRSSFeed(query='Elon musk')
 
-    def __init__(self, embedding_model, similarity_threshold: float = 0.35, ):
-        super().__init__(similarity_threshold=similarity_threshold, embedding_model=embedding_model)
+    def __init__(self):
+        super().__init__()
         self.feed_url = [
         "https://feeds.bbci.co.uk/news/technology/rss.xml",
     ]
-    def search(self, validation) -> list[str]:
+    def search(self, validation) -> list[Dict]:
+        """
+        Search technology RSS feeds for articles.
+
+        Args:
+            validation: Validated RSS feed parameters containing the query
+
+        Returns:
+            List of dictionaries containing link, title, description, published date, and feed_url
+        """
         result = self._search(feed_urls = self.feed_url, validation=validation)
         return result
 
@@ -152,14 +169,22 @@ class TechnologyRSSClient(BaseRSSClient):
 class SportsRSSClient(BaseRSSClient):
     """Sports based RSS client"""
 
-    def __init__(self, embedding_model, similarity_threshold: float = 0.65):
-        super().__init__(similarity_threshold = similarity_threshold,embedding_model = embedding_model)
+    def __init__(self):
+        super().__init__()
         self.feed_url = [
          "https://sports.yahoo.com/rss/",
          "https://feeds.bbci.co.uk/sport/rss.xml",
     ]
-#arsenal rank premier league
-    def search(self, validation) -> list[str]:
+    def search(self, validation) -> list[Dict]:
+        """
+        Search sports RSS feeds for articles.
+
+        Args:
+            validation: Validated RSS feed parameters containing the query
+
+        Returns:
+            List of dictionaries containing link, title, description, published date, and feed_url
+        """
         result = self._search(feed_urls = self.feed_url, validation=validation)
         return result
 
@@ -173,6 +198,10 @@ def main():
     #print(a)
 
     return
+
+
+#TODO timestampleri alip current time dan 24 saat cikarip almamiz gerekiyor veya 7 gun, user ne istiyorsa bunu schema olarak vermemiz lazim
+# todo title, description, timestamp (current datetime), category = "tech" or "sport" these will pass as default inside the related rss method and link (to search it later if user specifically specifies it)
 
 
 if __name__ == '__main__':

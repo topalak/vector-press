@@ -290,19 +290,6 @@ class PlanningAgent:
                 state.context_window.append(ToolMessage(content=response,
                                                             name=tool_name,
                                                             tool_call_id=tool_call["id"]))
-                '''
-                if tool_name ==  "WriteTodos":
-                    state.context_window.append(ToolMessage(content=response,
-                                                            name=tool_name,
-                                                            tool_call_id=tool_call["id"]))
-
-                elif tool_name == "ReadTodos":
-                    state.context_window.append(ToolMessage(content=response,
-                                                            name=tool_name,
-                                                            tool_call_id=tool_call["id"]))
-                else:
-                    state.context_window.append(ToolMessage(content=response,))
-                '''
             except Exception as e:
                 logger.warning(f"{tool_name} execution error: {e}")
                 continue

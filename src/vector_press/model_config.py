@@ -1,6 +1,7 @@
 import logging
 
 from langchain_ollama import ChatOllama, OllamaEmbeddings
+from langchain_groq import ChatGroq
 #from ai_common.llm import load_ollama_model #,_check_and_pull_ollama_model
 from config import settings
 
@@ -49,12 +50,14 @@ def _check_and_pull_ollama_model(model_name: str, ollama_url: str) -> None:
 class ModelConfig:
     def __init__(
         self,
-        model:str,
-        model_provider_url:str,   #as we can see ":" means its required
+        model:str,  #if we see ":", that means its required
+        model_provider_url:str = None,
         num_ctx:int = 8192,         #when we look it here there is "=" and that means is optional, this is default value, and you can change it in your config
         reasoning:bool = False,
         temperature:int = 0,
         use_cloud:bool = False,     #Set to True to use Ollama Cloud instead of local
+        api_key:str = None,
+        groq_provider= None,
         #num_predict:int = 128,   that causes tool call error, model cant generate tool call because of the limitation.
     ):
 
@@ -64,6 +67,8 @@ class ModelConfig:
         self.reasoning = reasoning
         self.temperature = temperature
         self.use_cloud = use_cloud
+        self.api_key = api_key
+        self.groq_provider = groq_provider
         #self.num_predict = num_predict
 
 
@@ -76,7 +81,7 @@ class ModelConfig:
                 model=self.model,
                 base_url="https://ollama.com",
                 client_kwargs={
-                    'headers': {'Authorization': f'Bearer {settings.OLLAMA_API_KEY}'}
+                    'headers': {'Authorization': f'Bearer {self.api_key}'}
                 },
                 num_ctx=self.num_ctx,
                 reasoning=self.reasoning,
@@ -84,6 +89,16 @@ class ModelConfig:
                 keep_alive="5m",
                 #research for response_format
             )
+
+        elif self.groq_provider:
+            # Use Groq Cloud
+            return ChatGroq(
+                model=self.model,
+                api_key=self.api_key,
+                temperature=self.temperature,
+            )
+
+
         else:
             # Use local Ollama
             _check_and_pull_ollama_model(model_name=self.model, ollama_url=self.model_provider_url)

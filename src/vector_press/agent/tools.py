@@ -2,6 +2,7 @@ from pydantic import BaseModel, Field, ValidationError
 from typing import Literal
 from config import settings
 import logging
+from langchain_core.tools import StructuredTool
 
 # Import shared models first to avoid circular imports
 from src.vector_press.agent.models import ToDo
@@ -12,7 +13,7 @@ from src.vector_press.model_config import ModelConfig
 #Clients
 from src.vector_press.agent.news_api_client import GuardianAPIClient,NewYorkTimesAPIClient
 from src.vector_press.agent.web_search_client import TavilyWebSearchClient
-#from src.vector_press.agent.rss_client import TechnologyRSSClient, SportsRSSClient
+from src.vector_press.agent.rss_client import TechnologyRSSClient, SportsRSSClient
 # write_todos and read_todos imported lazily in Tools.__init__ to avoid circular import
 #from vector_press import AgentState
 
@@ -30,19 +31,8 @@ class Query(BaseModel):
             #"Keep it focused on 3-5 keywords for best results."
 
 class TavilySearchSchema(Query):
-    """
-    Use this tool for GENERAL WEB SEARCHES and NON-CURRENT information queries.
 
-    When to use:
-    - User asks for tutorials, guides, or how-to information (e.g., "how to learn Python")
-    - User wants historical information (e.g., "history of Bitcoin", "what is quantum computing")
-    - User asks about concepts, definitions, or explanations (e.g., "explain blockchain")
-    - User wants financial market data or analysis (use topic='finance')
-    - User asks for general knowledge not requiring current news
-
-    Think first: Is this a general information query or a how-to question? If yes, use this tool.
-    """
-    max_results: int = Field(default=4,ge=4,le=10,description= #TODO optional yaptirma
+    max_results: int = Field(default=4,ge=4,le=20,description= #TODO optional yaptirma
             "Number of search results to return. "
             "Use 2-3 for quick answers, 5-10 for comprehensive research, "
             "10+ for deep exploration.")
@@ -55,19 +45,7 @@ class TavilySearchSchema(Query):
             "financial data, or economic indicators.")
 
 class TheGuardianApiSchema(Query):
-    """
-    This is The Guardian API
-    Use this tool for GENERAL NEWS searches (world, politics, business, culture, etc.).
 
-    When to use:
-    - User asks for news about world events, politics, or general current affairs
-    - User wants business news, economics, or corporate stories
-    - User asks for culture, lifestyle, or opinion pieces
-    - User wants ARCHIVED news articles (Guardian has extensive archives)
-
-    Think first: Is this a general news query (politics, world, business, culture)?
-    If yes, use this tool.
-    """
     #section: Optional[str] = Field(default=None, description="Guardian section (e.g., 'world', 'politics', 'business', 'technology')")  #section is messing up the results lets comment it
     max_pages: int = Field(default=1,ge=1,le=20,
             description="Number of pages to fetch. "
@@ -278,6 +256,7 @@ class SimpleReflectionSchema(BaseModel):
 
     reasoning : str = Field(description='Explain why did you decide whether true or false?')
 
+
 class Tools:
     def __init__(self):
         # Lazy imports to avoid circular dependency
@@ -298,8 +277,8 @@ class Tools:
         self.tavily_search_client = TavilyWebSearchClient()
         self.guardian_client = GuardianAPIClient()
         self.new_york_times_client = NewYorkTimesAPIClient()
-        #self.technology_rss_client = TechnologyRSSClient(embedding_model=self.embedding_model)
-        #self.sports_rss_client = SportsRSSClient(embedding_model=self.embedding_model)
+        self.technology_rss_client = TechnologyRSSClient()
+        self.sports_rss_client = SportsRSSClient()
         self.planning_agent = PlanningAgent(tools_instance=self)
 
         # Tool registry: maps schema class to (handler_method, schema_class)
@@ -307,8 +286,8 @@ class Tools:
             "TavilySearchSchema": (self.tavily_web_search, TavilySearchSchema),
             "TheGuardianApiSchema": (self.guardian_api, TheGuardianApiSchema),
             "NewYorkTimesApiSchema": (self.new_york_times_api, NewYorkTimesApiSchema),
-            #"TechnologyRSSFeedSchema": (self.technology_rss, TechnologyRSSFeedSchema),
-            #"SportsRSSFeedSchema": (self.sports_rss, SportsRSSFeedSchema),
+            "TechnologyRSSFeedSchema": (self.technology_rss, TechnologyRSSFeedSchema),
+            "SportsRSSFeedSchema": (self.sports_rss, SportsRSSFeedSchema),
             "WriteTodos" : (write_todos, WriteTodos),
             #"ReadTodos" : (read_todos, ReadTodos),
             "PlanningAgentSchema": (self.planning_agent.execute, PlanningAgentSchema),
@@ -492,40 +471,161 @@ class Tools:
 
 #########################  TOOL HANDLERS  ########################################
 
-    def guardian_api(self, validation: TheGuardianApiSchema) -> list[dict]:
+    def guardian_api(self, query: str, max_pages: int = 1, page_size: int = 3) -> list[dict]:
         """News Retrieve Tool"""
+        validation = TheGuardianApiSchema(query=query, max_pages=max_pages, page_size=page_size)
         return self.guardian_client.search(validation)
 
-    def new_york_times_api(self, validation: NewYorkTimesApiSchema) -> list[dict]:
+    def new_york_times_api(self, query: str) -> list[dict]:
         """News Retrieve Tool"""
+        validation = NewYorkTimesApiSchema(query=query)
         return self.new_york_times_client.search(validation)
 
-    #def technology_rss(self, validation: TechnologyRSSFeedSchema) -> list[str]:
-        #"""Technology RSS Feed"""
-        #return self.technology_rss_client.search(validation)
+    def technology_rss(self, query: str) -> list[dict]:
+        """Technology RSS Feed"""
+        validation = TechnologyRSSFeedSchema(query=query)
+        return self.technology_rss_client.search(validation)
 
-    #def sports_rss(self, validation: SportsRSSFeedSchema) -> list[str]:
-        #"""Sports RSS Feed"""
-       # return self.sports_rss_client.search(validation)
+    def sports_rss(self, query: str) -> list[dict]:
+        """Sports RSS Feed"""
+        validation = SportsRSSFeedSchema(query=query)
+        return self.sports_rss_client.search(validation)
 
-    def tavily_web_search(self,validation: TavilySearchSchema) -> dict:
+    def tavily_web_search(self, query: str, max_results: int = 4, topic: str = 'general') -> str:
         """
-        Web Search Tool with fact-checking.
+        Web Search Tool.
 
         Args:
-            validation: Validated Tavily search parameters
+            query: Search query string
+            max_results: Number of search results to return
+            topic: Search topic type ('general', 'finance', 'news')
         Returns:
-            dict with 'content' and 'fact_check' keys
+            AI-generated answer from Tavily
         """
+        validation = TavilySearchSchema(query=query, max_results=max_results, topic=topic)
         search_results = self.tavily_search_client.search(validation)   #TODO config ekle buraya, hepsi alir ihtiyaci olan kullanir (mesela burada max_result olacak)
         #validated_data = self._reflection(search_results)
         #validate_is_true = self.checks_args_true_or_not(validated_data, SimpleReflectionSchema)
 
         return search_results
-'''{
+        '''{
                 "content" : search_results,
                 "validated" :validate_is_true
                 }'''
+
+
+
+
+
+
+
+
+
+    def guardian_api_tool(self):
+        """Guardian API Tool"""
+        # Create StructuredTool
+        description ="""
+            This is The Guardian API
+            Use this tool for NEWS searches (world, politics, business, culture, etc.).
+        
+            When to use:
+            - User asks for news about world events, politics, or general current affairs
+            - User wants business news, economics, or corporate stories
+            - User asks for culture, lifestyle, or opinion pieces
+            - User wants ARCHIVED news articles (Guardian has extensive archives)
+        
+            Think first: Is this a general news query (politics, world, business, culture)?
+            If yes, use this tool.
+            """
+
+        guardian_api_tool = StructuredTool.from_function(
+            func=self.guardian_api,
+            name="guardian_api",
+            description=description,
+            args_schema=TheGuardianApiSchema,
+        )
+        return guardian_api_tool
+
+    def web_search_tool(self):
+        """Web Search Tool"""
+
+        description = """
+                Use this tool for general web searches.
+            
+                When to use:
+                - User asks for tutorials, guides, or how-to information (e.g., "how to learn Python")
+                - User wants historical information (e.g., "history of Bitcoin", "what is quantum computing")
+                - User asks about concepts, definitions, or explanations (e.g., "explain blockchain")
+                - User wants financial market data or analysis (use topic='finance')
+                - User asks for general knowledge not requiring current news
+            
+                Think first: Is this a general information query or a how-to question? If yes, use this tool.
+            """
+
+        web_search_tool = StructuredTool.from_function(
+            func=self.tavily_web_search,
+            name="web_search",
+            description=description,
+            args_schema=TavilySearchSchema,
+        )
+        return web_search_tool
+
+    def technology_rss_feed(self) -> list[dict]:
+        """Technology RSS Feed"""
+
+        description = """
+            Use this tool for TECHNOLOGY-RELATED CURRENT NEWS queries only.
+            You can use this tool to get Technology current topics.
+            This tool returns you article's link, title and publication dates.
+
+            When to use:
+            - User asks about recent tech news (e.g., "latest AI developments", "new iPhone release")
+            - User wants current events in: AI, cybersecurity, startups, tech products, semiconductors
+        
+            Think first: Does the user want CURRENT TECHNOLOGY NEWS? If yes, use this tool.
+            """
+
+        technology_rss_feed = StructuredTool.from_function(
+            func=self.technology_rss,
+            name="technology_rss_feed",
+            description=description,
+            args_schema=TechnologyRSSFeedSchema,
+        )
+        return technology_rss_feed
+
+    def sports_rss_feed(self) -> list[dict]:
+        """Sports RSS Feed"""
+
+        description ="""
+            Use this tool for SPORTS-RELATED CURRENT NEWS queries only.
+            You can use this tool to get Sports current topics.
+            This tool returns you article's link, title and publication dates.
+        
+            When to use:
+            - User asks about recent sports news (e.g., "latest football scores", "NBA results")
+            - User wants current events in: football, basketball, tennis, cricket, olympics, motorsports
+        
+            Think first: Does the user want CURRENT SPORTS NEWS? If yes, use this tool.
+        """
+
+        sports_rss_feed = StructuredTool.from_function(
+            func=self.sports_rss,
+            name="sports_rss_feed",
+            description=description,
+            args_schema=SportsRSSFeedSchema,
+        )
+        return sports_rss_feed
+
+
+
+
+    def reflection_tool(self):
+        """Reflection Tool"""
+
+        description = """
+        
+        """
+
 
 # TODO toollarin tamamina (gerekli olanlarin) reflection ekle, handlerlar icerisine, cunku ana classlarinin isi bu degil, _tools_call icerisinde yapmak da uygun olmayacak
 # TODO reflectionu da baska bir web search ile external ekleyebilirsin

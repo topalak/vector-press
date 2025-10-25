@@ -177,7 +177,6 @@ class VectorPressAgent:
                 state.context_window.append(ToolMessage(content=raw_tool_result,
                                                     tool_name=tool_name,
                                                     tool_id=tool_call["id"]))
-                print('ossuruk')
             except Exception as e:
                 logger.warning(f"{tool_name} execution error: {e}")
                 import traceback
@@ -251,7 +250,7 @@ def main():
     llm = config.get_llm()
     agent = VectorPressAgent(llm)
 
-    agent.ask(query="Fetch news about AI developments, Ukraine war, and NBA results?")
+    agent.ask(query="Just make a web search tool call for mac mini m4?")
     #can you multiple 15 and 764 by calling tools?
     #Who is Cristiano Ronaldo?
     #Can you fetch 200 articles about Ukraine and Russia war?
