@@ -9,7 +9,7 @@ from src.vector_press.agent.tools import Tools
 
 from deepagents import create_deep_agent
 
-llm_config = ModelConfig(model="gpt-oss:120b-cloud", use_cloud=True, api_key=settings.OLLAMA_API_KEY)
+llm_config = ModelConfig(model="gpt-oss:120b-cloud", use_cloud=True, api_key=settings.OLLAMA_API_KEY, num_ctx=8192)
                          #api_key=settings.OLLAMA_API_KEY)
 llm = llm_config.get_llm()
 
@@ -17,6 +17,8 @@ llm = llm_config.get_llm()
 # Instantiate Tools
 tools_instance = Tools()
 
+
+config = 1
 
 ################# AGENT 2 ####################
 
@@ -130,7 +132,7 @@ base_agent_instructions =  """You are a professional researcher, managing tools 
 
 agent = create_deep_agent(
     model=llm,
-    tools=[tools_instance.web_search_tool(), tools_instance.sports_rss_feed(), tools_instance.technology_rss_feed(), tools_instance.guardian_api_tool()],
+    tools=[tools_instance.web_search_tool(summarize=True), tools_instance.sports_rss_feed(), tools_instance.technology_rss_feed(), tools_instance.guardian_api_tool()],
     system_prompt=base_agent_instructions,
     subagents=[sub_critique_agent],
 )
@@ -163,3 +165,31 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+#I don't need to use write tool, probably it would be better
+# convert reflection and critique agent into tools
+
+
+'''
+EVALUATE METHOD 
+
+
+gemini ve claude code ile veri seti olusturup evaluate edeceksin , 5 er 5 er tane (benim domainim bu, bunun icin 5 tane soru ver ve herbiri icin 1 er adet gold answer ver)
+
+for x,y in (question, answer)
+
+    ilk question i agent a vereceksin ve answer verecek bu cevabi gold answer ile birlikte evaluater
+
+
+
+open ai, 5 tane soru ve answer uretecek
+
+
+
+number of turns u de hesaplayacak
+
+
+
+llm as a judge a bir guide veriyorsun ona bakarak puanlama yapiyor.
+
+'''

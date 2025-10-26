@@ -51,9 +51,10 @@ class ModelConfig:
     def __init__(
         self,
         model:str,  #if we see ":", that means its required
+        num_ctx:int,  #required parameter - must come before optional ones
         model_provider_url:str = None,
-        num_ctx:int = 8192,         #when we look it here there is "=" and that means is optional, this is default value, and you can change it in your config
-        reasoning:bool = False,
+        reasoning:bool = False,   #when we see an equal sign that means is optional. We must set a default value
+            #  you can change it while calling the related method
         temperature:int = 0,
         use_cloud:bool = False,     #Set to True to use Ollama Cloud instead of local
         api_key:str = None,
@@ -130,7 +131,7 @@ class ModelConfig:
 def main():
     from vector_press.agent import VectorPressAgent  #avoiding circular import dependency, model_config.py: "I need VectorPressAgent first!" -> base_agent.py: "I need ModelConfig first!" -> model_config.py: "But I'm not finished loading!" ->  It will cause circular dependency error
 
-    config = ModelConfig(model='qwen3:8b', model_provider_url=settings.OLLAMA_HOST)
+    config = ModelConfig(model='qwen3:8b', model_provider_url=settings.OLLAMA_HOST, nun_ctx=231)
     #now when above line has invoked it creates a dict which contains model's parameters
     llm = config.get_llm() #This is our llm which we invoked in get_llm method
 

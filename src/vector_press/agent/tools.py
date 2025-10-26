@@ -3,6 +3,7 @@ from typing import Literal
 from config import settings
 import logging
 from langchain_core.tools import StructuredTool
+from functools import partial
 
 # Import shared models first to avoid circular imports
 from src.vector_press.agent.models import ToDo
@@ -32,7 +33,7 @@ class Query(BaseModel):
 
 class TavilySearchSchema(Query):
 
-    max_results: int = Field(default=4,ge=4,le=20,description= #TODO optional yaptirma
+    max_results: int = Field(default=4,ge=4,le=10,description= #TODO I shouldn't set that optionally, handle that by using runnableconfig
             "Number of search results to return. "
             "Use 2-3 for quick answers, 5-10 for comprehensive research, "
             "10+ for deep exploration.")
@@ -274,7 +275,9 @@ class Tools:
         self.query_rewriter_llm = query_rewriter_llm_config.get_llm()
         self.query_rewriter_llm.bind_tools([QueryReWrite])
 
-        self.tavily_search_client = TavilyWebSearchClient()
+        #self.tavily_search_client = TavilyWebSearchClient()
+        self._tavily_without_summary = None
+        self._tavily_with_summary = None
         self.guardian_client = GuardianAPIClient()
         self.new_york_times_client = NewYorkTimesAPIClient()
         self.technology_rss_client = TechnologyRSSClient()
@@ -283,7 +286,7 @@ class Tools:
 
         # Tool registry: maps schema class to (handler_method, schema_class)
         self.tool_registry = {  #REGISTERY
-            "TavilySearchSchema": (self.tavily_web_search, TavilySearchSchema),
+            #"TavilySearchSchema": (self.tavily_web_search, TavilySearchSchema),
             "TheGuardianApiSchema": (self.guardian_api, TheGuardianApiSchema),
             "NewYorkTimesApiSchema": (self.new_york_times_api, NewYorkTimesApiSchema),
             "TechnologyRSSFeedSchema": (self.technology_rss, TechnologyRSSFeedSchema),
@@ -491,7 +494,9 @@ class Tools:
         validation = SportsRSSFeedSchema(query=query)
         return self.sports_rss_client.search(validation)
 
-    def tavily_web_search(self, query: str, max_results: int = 4, topic: str = 'general') -> str:
+
+    #DEPRECATED
+    def tavily_web_search(self,summarize:bool, query: str, max_results: int = 4, topic: str = 'general') -> str:
         """
         Web Search Tool.
 
@@ -499,19 +504,16 @@ class Tools:
             query: Search query string
             max_results: Number of search results to return
             topic: Search topic type ('general', 'finance', 'news')
+            summarize: summarize search results
         Returns:
             AI-generated answer from Tavily
         """
+        client = TavilyWebSearchClient(summarize=summarize)
+
         validation = TavilySearchSchema(query=query, max_results=max_results, topic=topic)
-        search_results = self.tavily_search_client.search(validation)   #TODO config ekle buraya, hepsi alir ihtiyaci olan kullanir (mesela burada max_result olacak)
-        #validated_data = self._reflection(search_results)
-        #validate_is_true = self.checks_args_true_or_not(validated_data, SimpleReflectionSchema)
+        search_results = client.search(validation, summarize=summarize)   #TODO config ekle buraya, hepsi alir ihtiyaci olan kullanir (mesela burada max_result olacak)
 
         return search_results
-        '''{
-                "content" : search_results,
-                "validated" :validate_is_true
-                }'''
 
 
 
@@ -521,8 +523,9 @@ class Tools:
 
 
 
-    def guardian_api_tool(self):
-        """Guardian API Tool"""
+    def guardian_api_tool(self) -> list[dict]:
+        """Guardian API Tool."""
+
         # Create StructuredTool
         description ="""
             This is The Guardian API
@@ -546,8 +549,28 @@ class Tools:
         )
         return guardian_api_tool
 
-    def web_search_tool(self):
-        """Web Search Tool"""
+    def web_search_tool(self, summarize:bool= True):
+        """
+        Web Search Tool.
+
+        Args:
+
+            summarize: summarize search results
+        Returns:
+            AI-generated answer from Tavily
+        """
+
+        if summarize:
+            if self._tavily_with_summary is None:
+                self._tavily_with_summary = TavilyWebSearchClient(summarize=True)
+            client = self._tavily_with_summary
+        else:
+            if self._tavily_without_summary is None:
+                self._tavily_without_summary = TavilyWebSearchClient(summarize=False)
+            client = self._tavily_without_summary
+
+
+        web_search_func = partial(self.tavily_web_search, summarize=summarize)
 
         description = """
                 Use this tool for general web searches.
@@ -563,7 +586,7 @@ class Tools:
             """
 
         web_search_tool = StructuredTool.from_function(
-            func=self.tavily_web_search,
+            func=web_search_func, #summary is tavily's parameter
             name="web_search",
             description=description,
             args_schema=TavilySearchSchema,
