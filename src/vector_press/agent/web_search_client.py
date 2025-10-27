@@ -48,16 +48,16 @@ class BaseWebSearchClient(ABC):
 
     @abstractmethod
     def search(self, validation, summary:bool,
-               #query:str, max_results:int, topic:str
+               #summarize:bool, query:str, max_results:int, topic:str
                ) -> list[str]:
         pass
 
-    def _summarizer(self, topic: str, results: list) -> str:
+    def _summarizer(self, query: str, results: list) -> str:
         """
         Optional summarizer function
 
         Args:
-            topic: topic to summarize
+            query: query for related summarization
             results: list of summary results
         """
 
@@ -66,7 +66,7 @@ class BaseWebSearchClient(ABC):
         for i, result in enumerate(results):
             raw_content = result['raw_content']
             # Format the prompt with topic and context
-            formatted_prompt = SUMMARIZER_PROMPT.format(topic=topic, context=raw_content)
+            formatted_prompt = SUMMARIZER_PROMPT.format(topic=query, context=raw_content)
             summary = self.llm.invoke([
                 {"role": "system", "content": formatted_prompt},
                 {"role": "user", "content": raw_content},
@@ -93,7 +93,7 @@ class TavilyWebSearchClient(BaseWebSearchClient):
         self.tavily_client = TavilyClient(api_key=self._api_key)
 
     def search(self, validation, summarize:bool,
-              # query:str, max_results:int, topic:str
+              #summarize:bool, query:str, max_results:int, topic:str
                ) -> list[str]:
         """Main search method - this is what base_agent.py should call"""
 
@@ -101,6 +101,7 @@ class TavilyWebSearchClient(BaseWebSearchClient):
         # USERS QUERY
 
         try:
+            #'''
             base_params = validation.model_dump()
 
             response = self.tavily_client.search(
@@ -110,12 +111,19 @@ class TavilyWebSearchClient(BaseWebSearchClient):
                 include_answer=True,
                 include_raw_content=True,
             )
-
-
+            '''
+            response = self.tavily_client.search(
+                query=query,
+                max_results=max_results,
+                topic=topic,
+                include_raw_content=True,
+            )
+            '''
             results = response['results']
 
             if summarize:
-                summarized = self._summarizer(topic=base_params['topic'], results=results)
+                summarized = self._summarizer(#query=query, results=results)
+                base_params['query'], results=results)
                 return summarized
             else:
                 ai_response_from_tavily = response.get('answer')
@@ -131,8 +139,9 @@ class LinkUpwebSearchClient(BaseWebSearchClient):
 
 
 def main():
-    client = TavilyWebSearchClient()
-    response = client.search(query='Apple M5 chip information',
+    client = TavilyWebSearchClient(summarize=True)
+    response = client.search(summarize=True,
+                            query='Chinese citizens died because CS:GO skin update news rumor',
                              max_results=10,
                              topic='general')
 
@@ -140,10 +149,6 @@ def main():
     answer = response
 
     #contents = [result['content'] for result in response]
-
-    print('ossuruk')
-    print(response)
-    print(answer)
 
 if __name__ == '__main__':
     main()

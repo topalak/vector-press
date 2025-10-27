@@ -33,7 +33,7 @@ class Query(BaseModel):
 
 class TavilySearchSchema(Query):
 
-    max_results: int = Field(default=4,ge=4,le=10,description= #TODO I shouldn't set that optionally, handle that by using runnableconfig
+    max_results: int = Field(default=4,ge=4,le=10,description= #TODO I shouldn't set that optionally, handle that by using runnable config
             "Number of search results to return. "
             "Use 2-3 for quick answers, 5-10 for comprehensive research, "
             "10+ for deep exploration.")
@@ -257,23 +257,66 @@ class SimpleReflectionSchema(BaseModel):
 
     reasoning : str = Field(description='Explain why did you decide whether true or false?')
 
+class CritiqueToolSchema(BaseModel):
+    """
+    Use for to critique the final report.
+    This tool MUST invoke before passing the output.
+    Don't forget to call that tool.
+    Schema for critiquing and evaluating research reports or content quality.
+
+
+    The critique should check:
+    - Section organization and naming
+    - Content depth and comprehensiveness
+    - Writing style (essay format, not bullet lists)
+    - Coverage of key topics without omissions
+    - Analysis depth (causes, impacts, trends)
+    - Alignment with original research question
+    - Language clarity and structure
+    """
+
+    content_to_critique: str = Field(
+        description=(
+            "The complete text content to be critiqued and evaluated. "
+            "This should be the FULL report or document, not a summary. "
+            "Include all sections, headings, and body text for comprehensive review."
+        ),
+        min_length=100,
+        max_length=50000,
+    )
+
+critique_llm_config = ModelConfig(use_cloud=True, model="gpt-oss:120b-cloud", api_key=settings.OLLAMA_API_KEY, num_ctx=16384)
+CRITIQUE_PROMPT = """You are a dedicated editor. You are being tasked to critique a report.
+
+Things to check:
+- Check that each section is appropriately named
+- Check that the report is written as you would find in an essay or a textbook - it should be text heavy, do not let it just be a list of bullet points!
+- Check that the report is comprehensive. If any paragraphs or sections are short, or missing important details, point it out.
+- Check that the article covers key areas of the industry, ensures overall understanding, and does not omit important parts.
+- Check that the article deeply analyzes causes, impacts, and trends, providing valuable insights
+- Check that the article closely follows the research topic and directly answers questions
+- Check that the article has a clear structure, fluent language, and is easy to understand.
+
+This is the report to critique:
+{report}
+"""
 
 class Tools:
     def __init__(self):
         # Lazy imports to avoid circular dependency
-        from src.vector_press.agent.planning_agent import PlanningAgent, write_todos, read_todos
+        #from src.vector_press.agent.planning_agent import PlanningAgent, write_todos, read_todos
 
         #embedding_model_config = ModelConfig(model="all-minilm:33m",model_provider_url=settings.OLLAMA_HOST)
-        fact_check_llm_config = ModelConfig(model="gpt-oss:120b-cloud",model_provider_url=settings.OLLAMA_HOST, reasoning=False, use_cloud=True)
-        query_rewriter_llm_config = ModelConfig(model="gpt-oss:120b-cloud",model_provider_url=settings.OLLAMA_HOST, reasoning=False, use_cloud=True)
+        #fact_check_llm_config = ModelConfig(model="gpt-oss:120b-cloud",model_provider_url=settings.OLLAMA_HOST, reasoning=False, use_cloud=True)
+        #query_rewriter_llm_config = ModelConfig(model="gpt-oss:120b-cloud",model_provider_url=settings.OLLAMA_HOST, reasoning=False, use_cloud=True)
 
         #self.embedding_model = embedding_model_config.get_embedding()
 
-        self.fact_check_llm = fact_check_llm_config.get_llm()
-        self.fact_check_structured_llm = self.fact_check_llm.bind_tools([SimpleReflectionSchema])
+        #self.fact_check_llm = fact_check_llm_config.get_llm()
+        #self.fact_check_structured_llm = self.fact_check_llm.bind_tools([SimpleReflectionSchema])
 
-        self.query_rewriter_llm = query_rewriter_llm_config.get_llm()
-        self.query_rewriter_llm.bind_tools([QueryReWrite])
+        #self.query_rewriter_llm = query_rewriter_llm_config.get_llm()
+        #self.query_rewriter_llm.bind_tools([QueryReWrite])
 
         #self.tavily_search_client = TavilyWebSearchClient()
         self._tavily_without_summary = None
@@ -282,7 +325,9 @@ class Tools:
         self.new_york_times_client = NewYorkTimesAPIClient()
         self.technology_rss_client = TechnologyRSSClient()
         self.sports_rss_client = SportsRSSClient()
-        self.planning_agent = PlanningAgent(tools_instance=self)
+        #self.planning_agent = PlanningAgent(tools_instance=self)
+        self.critique_tools_llm = critique_llm_config.get_llm()
+
 
         # Tool registry: maps schema class to (handler_method, schema_class)
         self.tool_registry = {  #REGISTERY
@@ -291,9 +336,9 @@ class Tools:
             "NewYorkTimesApiSchema": (self.new_york_times_api, NewYorkTimesApiSchema),
             "TechnologyRSSFeedSchema": (self.technology_rss, TechnologyRSSFeedSchema),
             "SportsRSSFeedSchema": (self.sports_rss, SportsRSSFeedSchema),
-            "WriteTodos" : (write_todos, WriteTodos),
+            #"WriteTodos" : (write_todos, WriteTodos),
             #"ReadTodos" : (read_todos, ReadTodos),
-            "PlanningAgentSchema": (self.planning_agent.execute, PlanningAgentSchema),
+            #"PlanningAgentSchema": (self.planning_agent.execute, PlanningAgentSchema),
         }
 
     def execute_tool(self, tool_name: str, args: dict, state):
@@ -495,28 +540,52 @@ class Tools:
         return self.sports_rss_client.search(validation)
 
 
-    #DEPRECATED
-    def tavily_web_search(self,summarize:bool, query: str, max_results: int = 4, topic: str = 'general') -> str:
+    def _tavily_web_search(self, query: str, max_results: int = 4, topic: str = 'general', summarize: bool = False) -> str:
         """
-        Web Search Tool.
+        Internal web search handler. LangChain validates args via TavilySearchSchema.
 
         Args:
-            query: Search query string
-            max_results: Number of search results to return
-            topic: Search topic type ('general', 'finance', 'news')
-            summarize: summarize search results
+            query: Search query string (validated by schema)
+            max_results: Number of search results to return (validated by schema)
+            topic: Search topic type ('general', 'finance', 'news') (validated by schema)
+            summarize: Whether to summarize results (injected via partial)
+
         Returns:
-            AI-generated answer from Tavily
+            Search results from Tavily (raw or summarized)
         """
-        client = TavilyWebSearchClient(summarize=summarize)
-
+        # Create validation schema for the client
         validation = TavilySearchSchema(query=query, max_results=max_results, topic=topic)
-        search_results = client.search(validation, summarize=summarize)   #TODO config ekle buraya, hepsi alir ihtiyaci olan kullanir (mesela burada max_result olacak)
 
+        # Get cached client based on summarize flag
+        if summarize:
+            if self._tavily_with_summary is None:
+                self._tavily_with_summary = TavilyWebSearchClient(summarize=True)
+            client = self._tavily_with_summary
+        else:
+            if self._tavily_without_summary is None:
+                self._tavily_without_summary = TavilyWebSearchClient(summarize=False)
+            client = self._tavily_without_summary
+
+        # Perform search
+        search_results = client.search(validation, summarize=summarize)
         return search_results
 
+    def _critique_tool(self, content_to_critique: str) -> str:
+        """
+        Critique a report or content.
 
+        Args:
+            content_to_critique: The full report text to critique
 
+        Returns:
+            Critique and feedback from the LLM
+        """
+        formatted_prompt = CRITIQUE_PROMPT.format(report=content_to_critique)
+        response = self.critique_tools_llm.invoke([
+            {"role": "system", "content": formatted_prompt},
+        ])
+
+        return response.content
 
 
 
@@ -549,44 +618,35 @@ class Tools:
         )
         return guardian_api_tool
 
-    def web_search_tool(self, summarize:bool= True):
+    def web_search_tool(self, summarize: bool = False):
         """
-        Web Search Tool.
+        Create a web search tool with optional summarization.
 
         Args:
+            summarize: Whether to enable LLM-based summarization of search results
 
-            summarize: summarize search results
         Returns:
-            AI-generated answer from Tavily
+            StructuredTool configured for web search
         """
-
-        if summarize:
-            if self._tavily_with_summary is None:
-                self._tavily_with_summary = TavilyWebSearchClient(summarize=True)
-            client = self._tavily_with_summary
-        else:
-            if self._tavily_without_summary is None:
-                self._tavily_without_summary = TavilyWebSearchClient(summarize=False)
-            client = self._tavily_without_summary
-
-
-        web_search_func = partial(self.tavily_web_search, summarize=summarize)
+        # Use partial to inject the summarize parameter
+        # LangChain will validate and pass: query, max_results, topic
+        web_search_func = partial(self._tavily_web_search, summarize=summarize)
 
         description = """
-                Use this tool for general web searches.
-            
-                When to use:
-                - User asks for tutorials, guides, or how-to information (e.g., "how to learn Python")
-                - User wants historical information (e.g., "history of Bitcoin", "what is quantum computing")
-                - User asks about concepts, definitions, or explanations (e.g., "explain blockchain")
-                - User wants financial market data or analysis (use topic='finance')
-                - User asks for general knowledge not requiring current news
-            
-                Think first: Is this a general information query or a how-to question? If yes, use this tool.
-            """
+        Use this tool for general web searches.
+        
+        When to use:
+        - User asks for tutorials, guides, or how-to information (e.g., "how to learn Python")
+        - User wants historical information (e.g., "history of Bitcoin", "what is quantum computing")
+        - User asks about concepts, definitions, or explanations (e.g., "explain blockchain")
+        - User wants financial market data or analysis (use topic='finance')
+        - User asks for general knowledge not requiring current news
+        
+        Think first: Is this a general information query or a how-to question? If yes, use this tool.
+        """
 
         web_search_tool = StructuredTool.from_function(
-            func=web_search_func, #summary is tavily's parameter
+            func=web_search_func,
             name="web_search",
             description=description,
             args_schema=TavilySearchSchema,
@@ -639,16 +699,19 @@ class Tools:
         )
         return sports_rss_feed
 
+    def critique_tool(self):
 
+        critique_tool = StructuredTool.from_function(
+            func=self._critique_tool,
+            description=        """
+        Use for to critique the final report.
+        This tool MUST invoke right after your final report to check is the final report is excellent.
+        Don't forget to call that tool.
+        """,
+            args_schema=CritiqueToolSchema,
+        )
 
-
-    def reflection_tool(self):
-        """Reflection Tool"""
-
-        description = """
-        
-        """
-
+        return critique_tool
 
 # TODO toollarin tamamina (gerekli olanlarin) reflection ekle, handlerlar icerisine, cunku ana classlarinin isi bu degil, _tools_call icerisinde yapmak da uygun olmayacak
 # TODO reflectionu da baska bir web search ile external ekleyebilirsin

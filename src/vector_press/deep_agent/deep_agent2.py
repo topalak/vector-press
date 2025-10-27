@@ -18,8 +18,6 @@ llm = llm_config.get_llm()
 tools_instance = Tools()
 
 
-config = 1
-
 ################# AGENT 2 ####################
 
 sub_critique_description = """ 
@@ -55,11 +53,8 @@ sub_critique_agent = {
 
 
 
-base_agent_instructions =  """You are a professional researcher, managing tools and subagents to deliver comprehensive, fact-checked reports.
-
-  ═══════════════════════════════════════════
-  🔧 YOUR TOOLS
-  ═══════════════════════════════════════════
+base_agent_instructions =  """You are a professional researcher, managing tool and deliver comprehensive, checked reports.
+    Your Tools:
 
   **guardian_api**: Search The Guardian for reliable news
     When to use:
@@ -77,19 +72,19 @@ base_agent_instructions =  """You are a professional researcher, managing tools 
     - Financial market data or analysis (set topic='finance')
     - Recent updates not yet in Guardian
 
-  **sports_rss_feed**: Fetch current sports news topics, There will be a lot of title, just select most valuable 3 - 5 topics and their links. 
-  **technology_rss_feed**: Fetch current tech news topics, There will be a lot of title, just select most valuable 3 - 5 topics and their links. 
+  **sports_rss_feed**: Fetch current sports news topics, There will be a lot of title, just select most valuable 3 - 5 topics and their links.
+  **technology_rss_feed**: Fetch current tech news topics, There will be a lot of title, just select most valuable 3 - 5 topics and their links.
 
-  <available_subagents>
-  **critique_agent**: Check report quality
-    - Reviews `final_report.md` for completeness
-    - If needs improvement: Update TODO and iterate (max 2 times)
-  </available_subagents>
+  **critique_tool**: Critique the final result for quality assurance, you MUST use that tool before delivering the output.
+  
+    When to use:
+    - MUST call it right after generating your final result
+    - Use to check if the final report is excellent and comprehensive
+    - Validates structure, clarity, completeness, and accuracy
+    - Don't forget to call this tool after finishing your report
 
 
   You are going to write a final report by applying these steps:
-  
-    If user mentions detailed answer write a detailed report otherwise please keep it SIMPLE.
     
     If base agent wants detailed report follow these:
         Please create a detailed answer to the overall research brief that:
@@ -98,8 +93,10 @@ base_agent_instructions =  """You are a professional researcher, managing tools 
         3. References relevant sources using [Title](URL) format, just share the most valuable 3 or 4 source, do not share every source. Its IMPORTANT. 
         4. Provides a balanced, thorough analysis. Be as comprehensive as possible, and include all information that is relevant to the overall research question. People are using you for deep research and will expect detailed, comprehensive answers.
         5. Includes a "Sources" section at the end.
-    
-    You can structure your report in a number of different ways. Here are some examples:
+        
+  Otherwise keep your answer SIMPLE.  
+
+  You can structure your report in a number of different ways. Here are some examples:
         
     To answer a question that asks you to return a list of things, you might only need a single section which is the entire list.
     1/ list of things or table of things
@@ -119,22 +116,73 @@ base_agent_instructions =  """You are a professional researcher, managing tools 
     - Use bullet points to list out information when appropriate, but by default, write in paragraph form.
     
     
-    The report will read by user, you need to be careful while generating it. 
-    You will format the output you receive beautifully and 
-    first print it in the final_report.md file, then send it to the main agent.
-    You MUST write it into "final_report.md" file. Because it will read by "critique_agent"
-    
+    The report will read by user, you need to be careful while generating it.
+    Your goal: Deliver excellent, comprehensive, fact-checked reports.
+
+   WORKFLOW EXAMPLES
+
+  **Example 1**
+
+  User Query: "Give me a comprehensive report on Apple's M5 chip"
+
+  Workflow:
+  1. ✅ Call web_search_tool(query="Apple M5 chip specifications features", max_results=5, topic="general")
+     - Gather technical specifications, release date, features
+     - If you decide web_search_tool's response is enough go the the next step, if it isn't call it again.
+
+  2. ✅ Synthesize all information into comprehensive report
+     - Structure: Introduction → Technical Specs → Performance → Market Impact → Conclusion
+     - Include specific facts, benchmarks, comparisons
+     - Add 3-4 most valuable sources in [Title](URL) format
+
+  3. ✅ Call critique_tool(content_to_critique="<your complete report>")
+     - Validate report quality, structure, comprehensiveness
+     - Check for missing details or weak sections
+
+  4. ✅ Deliver final report to user
 
 
-  Your goal: Deliver excellent, comprehensive, fact-checked reports.
+  **Example 2: Current Events Research Query**
+
+  User Query: "What's happening with the Ukraine-Russia conflict?"
+
+  Workflow:
+  1. ✅ Call guardian_api(query="Ukraine Russia conflict", max_pages=3, page_size=5)
+     - Get reliable journalistic coverage
+     - Gather recent developments and analysis
+
+  2. ✅ Create well-structured report
+     - Structure: Current Situation → Recent Developments → International Response → Analysis → Sources
+     - Use clear headings (##) for each section
+     - Include specific dates, facts, and key events
+     - Reference 3-4 most reliable sources
+
+  3. ✅ Call critique_tool(content_to_critique="<your complete report>")
+     - Ensure balanced coverage
+     - Verify all key aspects are addressed
+     - Check clarity and structure
+
+  6. ✅ Deliver final report to user
+
+
+  **Key Principles:**
+  - Always call critique_tool BEFORE delivering to user
+  - Gather information from multiple sources for comprehensive coverage
+  - Synthesize information into coherent narrative, not just a list of facts
+  - Include only the 3-4 most valuable sources (don't overwhelm with links)
+  - Structure reports with clear headings and logical flow
 
   """
 
 agent = create_deep_agent(
     model=llm,
-    tools=[tools_instance.web_search_tool(summarize=True), tools_instance.sports_rss_feed(), tools_instance.technology_rss_feed(), tools_instance.guardian_api_tool()],
+    tools=[tools_instance.web_search_tool(summarize=True),
+           tools_instance.sports_rss_feed(),
+           tools_instance.technology_rss_feed(),
+           tools_instance.guardian_api_tool(),
+           tools_instance.critique_tool()],
     system_prompt=base_agent_instructions,
-    subagents=[sub_critique_agent],
+   # subagents=[sub_critique_agent],
 )
 
 
@@ -145,7 +193,7 @@ def main():
     try:
         response = agent.invoke({
             "messages": [
-                {"role": "user", "content": "I want comprehensive report of Apple's m5 chip, which is released few weeks ago."}
+                {"role": "user", "content": "I want to buy mac mini m4, what are your thoughts, use critique tool ?"}
                 #I heard Apple has release m5 chip, I just want generalized information?
                 #I want comprehensive information about Ukraine and Russia war
             ]
@@ -156,6 +204,9 @@ def main():
             report_content = '\n'.join(response['files']['/final_report.md']['content'])
             print("\n=== FINAL REPORT ===\n")
             print(report_content)
+        else:
+            # Get the last message from the agent
+            print(response['messages'][-1].content)
 
     except Exception as e:
         print(e)
