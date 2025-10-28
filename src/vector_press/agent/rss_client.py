@@ -1,18 +1,29 @@
 import feedparser
 import logging
-from abc import ABC
+from abc import ABC, abstractmethod
 from typing import List, Dict
+from config import settings
 
 from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
 import requests
 from bs4 import BeautifulSoup
 
+from src.vector_press.model_config import ModelConfig
+# TechnologyRSSFeedSchema imported lazily in main() to avoid circular import
 
 logger = logging.getLogger(__name__)
 
-# TODO we need to retrieve timestamps of articles to retrieve last 24 hours news
+embedding_model_config = ModelConfig(model="embeddinggemma", model_provider_url=settings.OLLAMA_HOST, num_ctx=2)
 class BaseRSSClient(ABC):
+    def __init__(self, embedding:bool, similarity_threshold:float):
+        if embedding:
+            self.embedding_model = embedding_model_config.get_embedding()
+        self.similarity_threshold = similarity_threshold
+
+    @abstractmethod
+    def search(self, validation) -> list[Dict]:
+        pass
 
     @staticmethod
     def _fetch_feed(feed_urls: list[str]) -> List[Dict]:  # When you define a method in the base class at the class level (not inside __init__), it's automatically available to all subclasses.
@@ -33,9 +44,57 @@ class BaseRSSClient(ABC):
                 })
         return all_entries
 
-    def _embed(self, all_entries: list[dict], validation):
-        base_parms = validation.model_dump()
-        query = base_parms['query']
+    def _search(self, feed_urls: list[str], validation) -> list[Dict]:
+        """
+        Search RSS feeds and return full article contents above similarity threshold.
+
+        Args:
+            feed_urls: List of RSS feed URLs to search
+            validation: Validated RSS feed parameters containing the query
+
+        Returns:
+            List of full article text contents for items above threshold
+        """
+
+        base_params = validation.model_dump()
+
+        if embedding:
+            query = base_params["query"]
+
+            all_entries = self._fetch_feed(feed_urls)
+            query, entries = self._embed(all_entries=all_entries, query=query)
+            filtered_indices, filtered_scores = self._cosine_similarity(entries=entries, query=query)
+
+            article_contents = []
+
+            for position, score in zip(filtered_indices, filtered_scores):
+                entry = all_entries[position]
+
+                # Fetch full article content from URL
+                full_content = self._fetch_article_content(entry['link'])
+
+                if full_content:
+                    article_contents.append(full_content)
+                    logger.info(f"Successfully fetched article from {entry['link']}")
+                else:
+                    logger.warning(f"Skipping article due to fetch failure: {entry['link']}")
+
+            logger.info(
+                f"Retrieved {len(article_contents)} articles out of "
+                f"{len(filtered_indices)} matches above threshold"
+            )
+
+            return article_contents
+
+        else:
+
+            all_topics = self._fetch_feed(feed_urls)
+
+            logger.info(f"Retrieved {len(all_topics)} entries from {len(feed_urls)} feed(s)")
+
+            return all_topics
+
+    def _embed(self, all_entries: list[dict],query:str):
         query_embedding = self.embedding_model.embed_query(query)   #we changed the variable name because of these reasons
         '''  Reasons:
               - Type confusion: query starts as a str but becomes a numpy.ndarray or list[float]. This is confusing.
@@ -45,7 +104,6 @@ class BaseRSSClient(ABC):
 
         entry_text = [item['title_and_summary'] for item in all_entries]
         embeddings = self.embedding_model.embed_documents(entry_text)
-
 
         return query_embedding, embeddings
 
@@ -98,57 +156,11 @@ class BaseRSSClient(ABC):
             logger.warning(f"Failed to fetch article from {url}: {e}")
             return ""
 
-    def _search(self, feed_urls: list[str], validation) -> list[Dict]:
-        """
-        Search RSS feeds and return full article contents above similarity threshold.
-
-        Args:
-            feed_urls: List of RSS feed URLs to search
-            validation: Validated RSS feed parameters containing the query
-
-        Returns:
-            List of full article text contents for items above threshold
-        """
-
-        all_entries = self._fetch_feed(feed_urls)
-
-        logger.info(f"Retrieved {len(all_entries)} entries from {len(feed_urls)} feed(s)")
-
-        return all_entries
-
-        '''
-        all_entries = self._fetch_feed(feed_urls)
-        query, entries = self._embed(all_entries=all_entries, validation=validation)
-        filtered_indices, filtered_scores = self._cosine_similarity(entries=entries, query=query)
-
-        article_contents = []
-
-        for position, score in zip(filtered_indices, filtered_scores):
-            entry = all_entries[position]
-
-            # Fetch full article content from URL
-            full_content = self._fetch_article_content(entry['link'])
-
-            if full_content:
-                article_contents.append(full_content)
-                logger.info(f"Successfully fetched article from {entry['link']}")
-            else:
-                logger.warning(f"Skipping article due to fetch failure: {entry['link']}")
-
-        logger.info(
-            f"Retrieved {len(article_contents)} articles out of "
-            f"{len(filtered_indices)} matches above threshold"
-        )
-
-        return article_contents
-        '''
-
 class TechnologyRSSClient(BaseRSSClient):
     """Technology based RSS client"""
-    #validation_instance = TechnologyRSSFeed(query='Elon musk')
 
     def __init__(self):
-        super().__init__()
+        super().__init__(embedding=False, similarity_threshold=0.7)
         self.feed_url = [
         "https://feeds.bbci.co.uk/news/technology/rss.xml",
     ]
@@ -170,32 +182,35 @@ class SportsRSSClient(BaseRSSClient):
     """Sports based RSS client"""
 
     def __init__(self):
-        super().__init__()
+        super().__init__(embedding=False, similarity_threshold=0.7)
         self.feed_url = [
          "https://sports.yahoo.com/rss/",
          "https://feeds.bbci.co.uk/sport/rss.xml",
     ]
-    def search(self, validation) -> list[Dict]:
+    def search(self, validation, embedding:bool) -> list[Dict]:
         """
         Search sports RSS feeds for articles.
 
         Args:
+            embedding: enabling embedding
             validation: Validated RSS feed parameters containing the query
 
         Returns:
             List of dictionaries containing link, title, description, published date, and feed_url
         """
-        result = self._search(feed_urls = self.feed_url, validation=validation)
+
+        result = self._search(feed_urls = self.feed_url, validation=validation, embedding=embedding)
         return result
 
 def main():
-    from src.vector_press.model_config import ModelConfig
-    from config import settings
-    embedding_model_config = ModelConfig(model="all-minilm:33m", model_provider_url=settings.OLLAMA_HOST)
-    embedding_model = embedding_model_config.get_embedding()
-    rss = TechnologyRSSClient(embedding_model=embedding_model)
-    #a = rss.search(validation=TechnologyRSSFeed(query='cyber security'))
-    #print(a)
+    # Lazy import to avoid circular dependency
+    from src.vector_press.agent.tools import TechnologyRSSFeedSchema
+
+    rss = TechnologyRSSClient()
+
+    a = rss.search(validation=TechnologyRSSFeedSchema(query='cyber security', do_we_look_for_a_topic=True))
+
+    print(a)
 
     return
 

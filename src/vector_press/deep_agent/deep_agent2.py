@@ -13,6 +13,17 @@ llm_config = ModelConfig(model="gpt-oss:120b-cloud", use_cloud=True, api_key=set
                          #api_key=settings.OLLAMA_API_KEY)
 llm = llm_config.get_llm()
 
+embedding_config = 3 #we need to add here a runnable config
+
+#ilk stateini ve config ini freeze ediyor, sonra ikincinin stateine geciyor asinda bunlar ayni class icinde yer aliyolar ama farkli icerikler tabii ki, ikinci node da ikien ilkinden sonuc
+#geldi ilk freeze edilen state i tekrar cagiriyor, kullandigimz graph compile aslinda bu dondurulmayi aciyor aslinda onun gibi bir sey, normalde icine bir sey vermiyoruz ama bu durumda 1. node
+#dan gelen statei pass ediyormusuz gibi dusunelim yani oradan devam ediyor. diyelim ki su an 3. node u cagirdi ve o sirada 1. node da yer alan llm cevabi geldi ve event loop sunu dedi: dur hemen
+#dondurabilecegim yerde durdurup sana gelicem diyip sonra gelip 3. nun state ine kaldigi yerden devam ediyor.
+
+#persistant state
+
+#structured tool aslinda structured output, __init__, llm cagirriktan sonra cagrilacak tool olarak tanimliyor asinda senin pydantic classinin init methodunu llm.with_structured_output bind tools methodu cagriliypr
+
 
 # Instantiate Tools
 tools_instance = Tools()

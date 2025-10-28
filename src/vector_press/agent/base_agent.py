@@ -5,6 +5,9 @@ from src.vector_press.agent.tools import (
     TavilySearchSchema,
     TheGuardianApiSchema,
     PlanningAgentSchema,
+TechnologyRSSFeedSchema,
+SportsRSSFeedSchema,
+
     Tools,
 )
 
@@ -24,7 +27,11 @@ logger = logging.getLogger(__name__)
 tools_validation = [
     TavilySearchSchema,
     TheGuardianApiSchema,
-    PlanningAgentSchema,
+    #PlanningAgentSchema,
+    TechnologyRSSFeedSchema,
+SportsRSSFeedSchema,
+
+
 ]
 
 #You can call these tools in series or in parallel. Your functionality is conducted in a tool-calling loop.

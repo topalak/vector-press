@@ -82,6 +82,11 @@ class TechnologyRSSFeedSchema(Query):
     Think first: Does the user want CURRENT TECHNOLOGY NEWS? If yes, use this tool.
     """
 
+    do_we_look_for_a_topic : bool = Field(description="Do we look for a exact topic or user wants to learn whats happening generally?"
+                                          "example: User's query: I heard Apple has released new M5 chip, can you create a report?, do_we_look_for_a_topic=True"
+                                          "example: User's query: What is the latest news in tech?, do_we_look_for_a_topic=False")
+
+
 class SportsRSSFeedSchema(Query):
     """
     Use this tool for SPORTS-RELATED CURRENT NEWS queries only.
@@ -93,7 +98,9 @@ class SportsRSSFeedSchema(Query):
     Think first: Does the user want CURRENT SPORTS NEWS? If yes, use this tool.
     """
 
-
+    do_we_look_for_a_topic : bool = Field(description="Do we look for a exact topic or user wants to learn whats happening generally?"
+                                          "example: User's query: I heard Apple has released new M5 chip, can you create a report?, do_we_look_for_a_topic=True"
+                                          "example: User's query: What is the latest news in tech?, do_we_look_for_a_topic=False")
 
 
 
@@ -296,6 +303,7 @@ Things to check:
 - Check that the article deeply analyzes causes, impacts, and trends, providing valuable insights
 - Check that the article closely follows the research topic and directly answers questions
 - Check that the article has a clear structure, fluent language, and is easy to understand.
+- You shouldn't change any information like price, knowledge, date, time etc. Your mission is design the shape of report. 
 
 This is the report to critique:
 {report}
@@ -529,15 +537,17 @@ class Tools:
         validation = NewYorkTimesApiSchema(query=query)
         return self.new_york_times_client.search(validation)
 
-    def technology_rss(self, query: str) -> list[dict]:
+    def technology_rss(self, query: str, do_we_look_for_a_topic:str) -> list[dict]:
         """Technology RSS Feed"""
-        validation = TechnologyRSSFeedSchema(query=query)
-        return self.technology_rss_client.search(validation)
+        validation = TechnologyRSSFeedSchema(query=query, do_we_look_for_a_topic=do_we_look_for_a_topic)
+        embedding = validation['do_we_look_for_a_topic']
+        return self.technology_rss_client.search(validation, embedding=embedding)
 
-    def sports_rss(self, query: str) -> list[dict]:
+    def sports_rss(self, query: str, do_we_look_for_a_topic:str) -> list[dict]:
         """Sports RSS Feed"""
-        validation = SportsRSSFeedSchema(query=query)
-        return self.sports_rss_client.search(validation)
+        validation = SportsRSSFeedSchema(query=query, do_we_look_for_a_topic=do_we_look_for_a_topic)
+        embedding = validation['do_we_look_for_a_topic']
+        return self.sports_rss_client.search(validation, embedding = embedding)
 
 
     def _tavily_web_search(self, query: str, max_results: int = 4, topic: str = 'general', summarize: bool = False) -> str:
@@ -654,47 +664,41 @@ class Tools:
         return web_search_tool
 
     def technology_rss_feed(self) -> list[dict]:
-        """Technology RSS Feed"""
+        """
+       Use this tool for TECHNOLOGY-RELATED CURRENT NEWS queries only.
+       You can use this tool to get Technology current topics.
+       This tool returns you article's link, title and publication dates.
 
-        description = """
-            Use this tool for TECHNOLOGY-RELATED CURRENT NEWS queries only.
-            You can use this tool to get Technology current topics.
-            This tool returns you article's link, title and publication dates.
+       When to use:
+       - User asks about recent tech news (e.g., "latest AI developments", "new iPhone release")
+       - User wants current events in: AI, cybersecurity, startups, tech products, semiconductors
 
-            When to use:
-            - User asks about recent tech news (e.g., "latest AI developments", "new iPhone release")
-            - User wants current events in: AI, cybersecurity, startups, tech products, semiconductors
-        
-            Think first: Does the user want CURRENT TECHNOLOGY NEWS? If yes, use this tool.
-            """
+       Think first: Does the user want CURRENT TECHNOLOGY NEWS? If yes, use this tool.
+        """
 
         technology_rss_feed = StructuredTool.from_function(
             func=self.technology_rss,
-            name="technology_rss_feed",
-            description=description,
             args_schema=TechnologyRSSFeedSchema,
         )
         return technology_rss_feed
 
     def sports_rss_feed(self) -> list[dict]:
-        """Sports RSS Feed"""
+        """
+        Use this tool for SPORTS-RELATED CURRENT NEWS queries only.
+        You can use this tool to get Sports current topics.
+        This tool returns you article's link, title and publication dates.
 
-        description ="""
-            Use this tool for SPORTS-RELATED CURRENT NEWS queries only.
-            You can use this tool to get Sports current topics.
-            This tool returns you article's link, title and publication dates.
-        
-            When to use:
-            - User asks about recent sports news (e.g., "latest football scores", "NBA results")
-            - User wants current events in: football, basketball, tennis, cricket, olympics, motorsports
-        
-            Think first: Does the user want CURRENT SPORTS NEWS? If yes, use this tool.
+        When to use:
+        - User asks about recent sports news (e.g., "latest football scores", "NBA results")
+        - User wants current events in: football, basketball, tennis, cricket, olympics, motorsports
+
+        Think first: Does the user want CURRENT SPORTS NEWS? If yes, use this tool.
         """
 
         sports_rss_feed = StructuredTool.from_function(
             func=self.sports_rss,
-            name="sports_rss_feed",
-            description=description,
+
+
             args_schema=SportsRSSFeedSchema,
         )
         return sports_rss_feed
