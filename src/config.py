@@ -7,6 +7,7 @@ ENV_FILE_DIR = os.path.abspath(os.path.join(FILE_DIR, os.pardir))
 
 class Settings(BaseSettings):
     OLLAMA_HOST: str = ""
+    OLLAMA_API_KEY: str = ""
     GROQ_API_KEY: str = ""
     SUPABASE_URL: str = ""
     SUPABASE_SERVICE_KEY: str = ""
@@ -14,6 +15,7 @@ class Settings(BaseSettings):
     LANGSMITH_API_KEY: str = ""
     LANGSMITH_TRACING: str = "false"
     TAVILY_API_KEY: str = ""
+    NEWYORKTIMES_API: str = ""
 
     OUTPUT: str = os.path.join(ENV_FILE_DIR, 'out')
     TIME_ZONE: datetime.timezone = datetime.timezone(offset=datetime.timedelta(hours=3), name='UTC+3')

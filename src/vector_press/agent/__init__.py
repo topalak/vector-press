@@ -1,25 +1,30 @@
 # Main agent classes
-from .agent import VectorPressAgent, AgentState, should_continue
+from src.vector_press.agent.base_agent import VectorPressAgent, AgentState
 
 # API clients
-from .api_clients import GuardianAPIClient, BaseAPIClient, extract_article_text
-
+from .news_api_client import GuardianAPIClient, BaseNewsAPIClient, _extract_article_text
+from .rss_client import TechnologyRSSClient, SportsRSSClient
 # Validation models
-from .tools_validation import TavilySearchRequest, GuardianSearchRequest
+from .tools import TavilySearchSchema, TheGuardianApiSchema, NewYorkTimesApiSchema, TechnologyRSSFeedSchema, SportsRSSFeedSchema, WriteTodos, ReadTodos
 
 # Export all public classes and functions
 __all__ = [
     # Agent classes
     "VectorPressAgent",
     "AgentState",
-    "should_continue",
 
     # API clients
     "GuardianAPIClient",
-    "BaseAPIClient",
-    "extract_article_text",
+    "BaseNewsAPIClient",
+    "TechnologyRSSClient",
+    "SportsRSSClient",
 
     # Validation models
-    "TavilySearchRequest",
-    "GuardianSearchRequest",
+    "TavilySearchSchema",
+    "TheGuardianApiSchema",
+    "NewYorkTimesApiSchema",
+    "TechnologyRSSFeedSchema",
+    "SportsRSSFeedSchema",
+    "WriteTodos",
+    "ReadTodos",
 ]

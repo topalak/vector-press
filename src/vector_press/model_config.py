@@ -1,0 +1,143 @@
+import logging
+
+from langchain_ollama import ChatOllama, OllamaEmbeddings
+from langchain_groq import ChatGroq
+#from ai_common.llm import load_ollama_model #,_check_and_pull_ollama_model
+from config import settings
+
+
+from ollama import ListResponse, Client
+from tqdm import tqdm
+from ollama import Client
+
+
+def _check_and_pull_ollama_model(model_name: str, ollama_url: str) -> None:
+    ollama_client = Client(host=ollama_url)
+    response: ListResponse = ollama_client.list()
+    available_model_names = [x.model for x in response.models]
+
+    # Modified from https://github.com/ollama/ollama-python/blob/main/examples/pull.py
+    if model_name not in available_model_names:
+        print(f'Pulling {model_name}')
+        current_digest, bars = '', {}
+        for progress in ollama_client.pull(model=model_name, stream=True):
+            digest = progress.get('digest', '')
+            if digest != current_digest and current_digest in bars:
+                bars[current_digest].close()
+
+            if not digest:
+                print(progress.get('status'))
+                continue
+
+            if digest not in bars and (total := progress.get('total')):
+                bars[digest] = tqdm(total=total, desc=f'pulling {digest[7:19]}', unit='B', unit_scale=True)
+
+            if completed := progress.get('completed'):
+                bars[digest].update(completed - bars[digest].n)
+
+            current_digest = digest
+
+
+    '''
+    try:
+        ollama_client.generate(model=model_name)
+    except Exception as e:
+        logging.error(f'Failed to generate {model_name}: {e},it throws an error because of that, it will try to embed rn')
+        ollama_client.embed(model_name)
+    '''
+
+
+class ModelConfig:
+    def __init__(
+        self,
+        model:str,  #if we see ":", that means its required
+        num_ctx:int,  #required parameter - must come before optional ones
+        model_provider_url:str = None,
+        reasoning:bool = False,   #when we see an equal sign that means is optional. We must set a default value
+            #  you can change it while calling the related method
+        temperature:int = 0,
+        use_cloud:bool = False,     #Set to True to use Ollama Cloud instead of local
+        api_key:str = None,
+        groq_provider= None,
+        #num_predict:int = 128,   that causes tool call error, model cant generate tool call because of the limitation.
+    ):
+
+        self.model = model
+        self.model_provider_url = model_provider_url
+        self.num_ctx = num_ctx      #when __init__ invokes it creates dummies when it comes that line they are coming real variables
+        self.reasoning = reasoning
+        self.temperature = temperature
+        self.use_cloud = use_cloud
+        self.api_key = api_key
+        self.groq_provider = groq_provider
+        #self.num_predict = num_predict
+
+
+    def get_llm(self):
+        #we are reaching that method by line 55, and we have self dict which equiv
+
+        if self.use_cloud:
+            # Use Ollama Cloud
+            return ChatOllama(
+                model=self.model,
+                base_url="https://ollama.com",
+                client_kwargs={
+                    'headers': {'Authorization': f'Bearer {self.api_key}'}
+                },
+                num_ctx=self.num_ctx,
+                reasoning=self.reasoning,
+                temperature=self.temperature,
+                keep_alive="5m",
+                #research for response_format
+            )
+
+        elif self.groq_provider:
+            # Use Groq Cloud
+            return ChatGroq(
+                model=self.model,
+                api_key=self.api_key,
+                temperature=self.temperature,
+            )
+
+
+        else:
+            # Use local Ollama
+            _check_and_pull_ollama_model(model_name=self.model, ollama_url=self.model_provider_url)
+            ollama_client = Client(host=self.model_provider_url)
+            ollama_client.generate(model=self.model)
+
+            return ChatOllama(  #let's wrap our model
+                model=self.model,
+                base_url=self.model_provider_url,
+                num_ctx=self.num_ctx,
+                reasoning=self.reasoning,
+                temperature=self.temperature,
+                keep_alive="5m",
+                #num_predict=self.num_predict,
+            )
+
+    def get_embedding(self):
+        # Load embedding model if needed
+        _check_and_pull_ollama_model(model_name=self.model, ollama_url=self.model_provider_url)
+        ollama_client = Client(host=self.model_provider_url)
+        ollama_client.embed(model=self.model)
+
+        return OllamaEmbeddings(
+            model=self.model,
+            base_url=self.model_provider_url,
+        )
+
+
+def main():
+    from vector_press.agent import VectorPressAgent  #avoiding circular import dependency, model_config.py: "I need VectorPressAgent first!" -> base_agent.py: "I need ModelConfig first!" -> model_config.py: "But I'm not finished loading!" ->  It will cause circular dependency error
+
+    config = ModelConfig(model='qwen3:8b', model_provider_url=settings.OLLAMA_HOST, nun_ctx=231)
+    #now when above line has invoked it creates a dict which contains model's parameters
+    llm = config.get_llm() #This is our llm which we invoked in get_llm method
+
+    agent = VectorPressAgent(llm)
+    agent.ask(query= 'Who is Cristiano Ronaldo')
+
+
+if __name__ == '__main__':
+    main()
